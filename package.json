@@ -1,0 +1,39 @@
+{
+  "name": "marco",
+  "version": "0.0.0",
+  "description": "Marco Polo, the bot who gets you where you need to go.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/howardengelhart/marco.git"
+  },
+  "author": "Howard Engelhart",
+  "engines": {
+    "node": ">= 4.3.0"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/howardengelhart/marco/issues"
+  },
+  "homepage": "https://github.com/howardengelhart/marco#readme",
+  "dependencies": {
+    "aws-sdk": "2.6.5",
+    "bunyan": "1.8.1",
+    "lodash": "4.16.2",
+    "thefacebook": "git+https://github.com/howardengelhart/thefacebook.git#v0.2.1"
+  },
+  "devDependencies": {
+    "archiver": "1.1.0",
+    "eslint": "3.6.1",
+    "eslint-plugin-jasmine": "1.8.1",
+    "eslint-plugin-node": "2.1.2",
+    "grunt": "1.0.1",
+    "grunt-contrib-watch": "1.0.0",
+    "grunt-eslint": "19.0.0",
+    "grunt-jasmine-nodejs": "1.5.4",
+    "proxyquire": "1.7.10"
+  }
+}

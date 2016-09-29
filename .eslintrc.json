@@ -1,0 +1,33 @@
+{
+    "env": {
+        "node": true,
+        "es6": true
+    },
+    "plugins": ["node"],
+    "extends": [
+        "eslint:recommended",
+        "plugin:node/recommended"
+    ],
+    "rules": {
+        "indent": [
+            "error",
+            4
+        ],
+        "linebreak-style": [
+            "error",
+            "unix"
+        ],
+        "quotes": [
+            "error",
+            "single"
+        ],
+        "semi": [
+            "error",
+            "always"
+        ],
+        "max-len": [
+            "error",
+            100
+        ]
+    }
+}

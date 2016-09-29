@@ -1,0 +1,51 @@
+{
+  "body-json": {},
+  "params": {
+    "path": {
+        "app" : "chatbot1" 
+    },
+    "querystring": {
+      "hub.challenge": "1242057029",
+      "hub.mode": "subscribe",
+      "hub.verify_token": "32f83330d70f556995ee1fc37b7375ee8c717d31"
+    },
+    "header": {
+      "Accept": "*/*",
+      "Accept-Encoding": "deflate, gzip",
+      "CloudFront-Forwarded-Proto": "https",
+      "CloudFront-Is-Desktop-Viewer": "true",
+      "CloudFront-Is-Mobile-Viewer": "false",
+      "CloudFront-Is-SmartTV-Viewer": "false",
+      "CloudFront-Is-Tablet-Viewer": "false",
+      "CloudFront-Viewer-Country": "US",
+      "Host": "almgzugs03.execute-api.us-east-1.amazonaws.com",
+      "User-Agent": "facebookplatform/1.0 (+http://developers.facebook.com)",
+      "Via": "1.1 336f0e6ef9a3462f682d6ca49029b665.cloudfront.net (CloudFront)",
+      "X-Amz-Cf-Id": "4jkFl0C9OuC1ZrmDWX2HlE1uMOvWXJJOYefZ39UPILYEl6Vp7Ctbyw==",
+      "X-Forwarded-For": "66.220.158.102, 54.239.134.113",
+      "X-Forwarded-Port": "443",
+      "X-Forwarded-Proto": "https"
+    }
+  },
+  "stage-variables": {},
+  "context": {
+    "account-id": "",
+    "api-id": "almgzugs03",
+    "api-key": "",
+    "authorizer-principal-id": "",
+    "caller": "",
+    "cognito-authentication-provider": "",
+    "cognito-authentication-type": "",
+    "cognito-identity-id": "",
+    "cognito-identity-pool-id": "",
+    "http-method": "GET",
+    "stage": "staging",
+    "source-ip": "66.220.158.102",
+    "user": "",
+    "user-agent": "facebookplatform/1.0 (+http://developers.facebook.com)",
+    "user-arn": "",
+    "request-id": "10d6edbd-7516-11e6-8d7c-754a5435afa9",
+    "resource-id": "hiyzxk",
+    "resource-path": "/processMessages"
+  }
+}
