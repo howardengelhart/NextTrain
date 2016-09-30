@@ -134,10 +134,12 @@ exports.handler = (event, context ) => {
         return handler(event,context,app);
     })
     .then(res => {
+        log.info({'result': res},'Handler Succeeded.');
         context.succeed(res);
         return res;
     })
     .catch(err => {
+        log.error({'error': err},'Handler Failed.');
         context.fail(err);
         return Promise.reject(err);
     });

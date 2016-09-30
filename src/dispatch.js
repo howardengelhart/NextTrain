@@ -15,6 +15,6 @@ module.exports = (app, messages ) => {
     return Promise.all((messages || []).map( (msg) => {
         log.info('dispatching: ', msg);
         let token = tokenMap[msg.recipient.id];
-        message.send(msg.sender.id,'Your message has been received.',token);
+        return message.send(msg.sender.id,'Your message has been received.',token);
     }));
 };

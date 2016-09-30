@@ -38,3 +38,6 @@ jspm_packages
 
 # Utilities
 util
+
+# Build
+dist
