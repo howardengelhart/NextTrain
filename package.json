@@ -4,7 +4,8 @@
   "description": "Marco Polo, the bot who gets you where you need to go.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dynamodb": "java -Djava.library.path=./util/DynamoDBLocal_lib -jar ./util/DynamoDBLocal.jar -sharedDb -inMemory",
+    "otp" : "java -Xmx2G -jar util/otp-1.0.0-shaded.jar --build ./util --inMemory"
   },
   "repository": {
     "type": "git",
