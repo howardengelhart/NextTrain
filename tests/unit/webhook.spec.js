@@ -5,7 +5,7 @@ describe('webhook', () => {
     const TEST_DATE = 1453929767464; //Wed Jan 27 2016 16:22:47 GMT-0500 (EST)
 
     let mockDispatch, mockLog, mockEvent, mockContext, mockApp,
-        DocumentClient, db, handler, exec ;
+        DataStore, db, handler, exec ;
     
     beforeAll(() => {
         jasmine.clock().install();
@@ -27,36 +27,33 @@ describe('webhook', () => {
         mockApp = {
             id : 'a-123',
             name : 'My App',
-            active : true,
-            env : {
-                test : {
-                    facebook : {
-                        appId : 'fb-1',
-                        verifyToken : 'fb-token1',
-                        pages : []
-                    }
-                }
+            facebook : {
+                appId : 'fb-1',
+                verifyToken : 'fb-token1',
+                pages : []
             }
         };
 
-        DocumentClient = jasmine.createSpy('DynamoDB.DocumentClient()').and.callFake(() =>  {
+        DataStore = jasmine.createSpy('DataStore()').and.callFake(() =>  {
             return {
-                get   : jasmine.createSpy('db.get')
+                getApp   : jasmine.createSpy('db.getApp')
             };
         });
 
         handler = proxyquire('../../src/webhook.js', {
-            'aws-sdk' : {
-                DynamoDB : { DocumentClient : DocumentClient }
-            },
+            './DataStore' : DataStore,
             './log' : mockLog,
             './dispatch' : mockDispatch
         }).handler;
         
         exec = (cbErr,cbData) => {
-            db  = DocumentClient.calls.mostRecent().returnValue;
-            db.get.and.callFake( (p, c) => {
-                return c(cbErr || null,cbData || { Item :  mockApp });
+            db  = DataStore.calls.mostRecent().returnValue;
+            db.getApp.and.callFake( () => {
+                if (cbErr) {
+                    return Promise.reject(cbErr);
+                }
+
+                return Promise.resolve(cbData || mockApp );
             });
 
             return handler(mockEvent, mockContext );
@@ -139,22 +136,9 @@ describe('webhook', () => {
         
         it('responds with an error if the request has no params', (done) => {
             delete mockEvent.params;
-            handler(mockEvent, mockContext );
             exec()
             .then(done.fail, (err) => {
                 expect(err.message).toEqual('Invalid request.');
-                expect(mockContext.fail).toHaveBeenCalledWith(err);
-            })
-            .then(done, done.fail);
-        });
-
-        it('responds with an error if the applcation is not found', (done) => {
-            handler(mockEvent, mockContext );
-            exec(null, {})
-            .then(done.fail, (err) => {
-                expect(mockLog.error).toHaveBeenCalledWith(
-                    'Failed on application lookup, a-123 not found.');
-                expect(err.message).toEqual('Forbidden');
                 expect(mockContext.fail).toHaveBeenCalledWith(err);
             })
             .then(done, done.fail);

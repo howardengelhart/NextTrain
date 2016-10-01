@@ -23,6 +23,10 @@ module.exports = (grunt)=>  {
 
             unit : {
                 specs : [ 'tests/unit/**' ]
+            },
+
+            e2e : {
+                specs : [ 'tests/e2e/**' ]
             }
 
         },
@@ -36,8 +40,8 @@ module.exports = (grunt)=>  {
             },
             scripts : {
                 files : [ 'index.js', 'Gruntfile.js', 'src/**/*.js',
-                            'tests/unit/**' ],
-                tasks : [ 'eslint', 'test:unit', 'lambda' ],
+                            'tests/unit/**', 'tests/e2e/**' ],
+                tasks : [ 'eslint', 'test:unit' ],
             }
         }
     });

@@ -38,6 +38,7 @@ jspm_packages
 
 # Utilities
 util
+util.tar.gz
 
 # Build
 dist

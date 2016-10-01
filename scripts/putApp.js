@@ -3,13 +3,13 @@
 const aws = require('aws-sdk');
 
 aws.config.update({
-      region:   'us-east-1'
-//      endpoint: 'http://localhost:8000'
+      region:   'us-east-1',
+      endpoint: 'http://localhost:8000'
 });
 
 const dynamodb = new aws.DynamoDB.DocumentClient();
 
-let qry = { 
+let app = { 
    TableName : 'applications',
    Item: {
       name: 'Marco Polo = Test1',
@@ -34,10 +34,37 @@ let qry = {
    }
 };
 
-dynamodb.put(qry, (err, data) => {
-    if (err) {
-        console.error('Unable to put record. Error JSON:', JSON.stringify(err, null, 2));
-    } else {
-        console.log(JSON.stringify(data, null, 3));
+let user = {
+    TableName : 'users',
+    Item: {
+        app : {
+            marcotest : {
+                env : {
+                    staging : {
+
+                    }
+                }
+            }
+        }
+        id: 'marcotest'
     }
+};
+
+Promise.all([app].map(qry => {
+    return new Promise((resolve,reject) => {
+        dynamodb.put(qry, (err, data) => {
+            if (err) {
+                reject(err); 
+            } else {
+                resolve(data);
+            }
+        });
+    });
+}))
+.then((data)=>{
+    console.log(JSON.stringify(data, null, 3));
+    return process.exit(0);
+})
+.catch(err => {
+    console.error('Unable to put record. Error JSON:', JSON.stringify(err, null, 2));
 });

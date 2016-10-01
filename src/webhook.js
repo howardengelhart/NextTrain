@@ -1,54 +1,12 @@
 'use strict';
 
-const aws       = require('aws-sdk');
 const ld        = require('lodash');
 const log       = require('./log');
 const dispatch  = require('./dispatch');
 const config    = require('./config');
+const DataStore = require('./DataStore');
 
-aws.config.update({ region : config.awsRegion });
-let db  = new aws.DynamoDB.DocumentClient();
-
-function lookupApp(event ) {
-    let app = ld.get(event,'params.path.app');
-    let env = ld.get(event,'context.stage');
-    let qry = {
-        TableName : 'applications',
-        Key : {
-            id  : app 
-        }
-    };
-
-    return new Promise( (resolve, reject) => {
-        if (!app) {
-            log.error('Application missing from request path.');
-            return reject(new Error('Invalid request.'));
-        }
-
-        db.get(qry, (error, data) => {
-            if (error) {
-                log.error({ dbError: error },'Error on application lookup.');
-                return reject(new Error('Forbidden'));
-            }
-
-            log.info({ dbResult : data},'application lookup result.');
-
-            let item = data.Item;
-
-            if (!item) {
-                log.error(`Failed on application lookup, ${app} not found.`);
-                return reject(new Error('Forbidden'));
-            }
-            
-            if (!item.active) {
-                log.error(`Failed on application lookup, ${app} not active.`);
-                return reject(new Error('Forbidden'));
-            }
-
-            return resolve(ld.assign({ id : item.id, name : item.name}, item.env[env]));
-        });
-    });
-}
+let db  = new DataStore(config.aws);
 
 function onGet (event, context, app ) {
     let hubMode =  ld.get(event,'params.querystring[\'hub.mode\']');
@@ -116,6 +74,8 @@ function onPost(event, context, app ) {
 exports.handler = (event, context ) => {
     log.info({'event': event, context: context},'New Request');
     let method = ld.get(event,'context.http-method');
+    let env    = ld.get(event,'context.stage');
+    let app    = ld.get(event,'params.path.app');
     let handler;
     
     if (method === 'GET') {
@@ -128,8 +88,7 @@ exports.handler = (event, context ) => {
         context.fail(err);
         return Promise.reject(err);
     }
-
-    return lookupApp(event, context)
+    return db.getApp(app, env)
     .then( (app) => {
         return handler(event,context,app);
     })
