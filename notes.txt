@@ -1,0 +1,36 @@
+1. find application record
+
+2. iterate messages, pull out old/bad ones
+
+3. find senders
+
+4. convert to request
+
+5. dispatch to request handler
+
+6. handle request
+
+7. update user records
+
+8. done
+
+* note:  set limit of messages to handle, if count > limit - send back busy now
+
+trip data 
+    departing station
+    arriving station
+    date of travel
+    time of arrival
+
+user record
+    trip array (0) = current trip?
+    default departing station
+    default arriving station
+    set home / work aliases
+
+
+
+
+
+
+
