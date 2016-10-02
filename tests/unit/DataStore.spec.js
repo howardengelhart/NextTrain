@@ -48,7 +48,7 @@ describe('DataStore', () => {
         beforeEach(() => {
             mockApp = { 
                 Item : {
-                    id : 'a-123',
+                    appId : 'a-123',
                     name : 'My App',
                     active : true,
                     env : {
@@ -119,10 +119,10 @@ describe('DataStore', () => {
             .then((res) => {
                 expect(params).toEqual({
                     TableName: 'applications',
-                    Key: { id : 'a-123' }
+                    Key: { appId : 'a-123' }
                 });
                 expect(res).toEqual({
-                    id : 'a-123',
+                    appId : 'a-123',
                     name: 'My App',
                     facebook : {
                         appId : 'fb-1',

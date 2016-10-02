@@ -3,7 +3,7 @@
 var aws = require('aws-sdk');
 
 aws.config.update({
-      region:   'us-east-1',
+      region:   'us-east-1'
       endpoint: 'http://localhost:8000'
 });
 
@@ -12,11 +12,11 @@ const dynamodb = new aws.DynamoDB();
 let appsTable = {
     TableName: 'applications',
     KeySchema: [
-       { AttributeName: 'id', KeyType: 'HASH' } // Partition Key
+       { AttributeName: 'appId', KeyType: 'HASH' } // Partition Key
     ],
     AttributeDefinitions: [
        {
-          AttributeName: 'id',
+          AttributeName: 'appId',
           AttributeType: 'S'
        }
     ],
@@ -39,7 +39,7 @@ let usersTable = {
     ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 }
 };
 
-Promise.all([appsTable, usersTable].map(table => {
+Promise.all([appsTable,usersTable].map(table => {
     return new Promise((resolve,reject) => {
         console.log('Create: ', table.TableName);
         dynamodb.createTable(table, (err, data) => {

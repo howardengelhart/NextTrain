@@ -3,8 +3,8 @@
 const aws = require('aws-sdk');
 
 aws.config.update({
-      region:   'us-east-1',
-      endpoint: 'http://localhost:8000'
+      region:   'us-east-1'
+//      endpoint: 'http://localhost:8000'
 });
 
 const dynamodb = new aws.DynamoDB.DocumentClient();
@@ -29,26 +29,26 @@ let app = {
             }
          }
       },
-      id: 'marcotest',
+      appId: 'marcotest',
       active: true
    }
 };
 
-let user = {
-    TableName : 'users',
-    Item: {
-        app : {
-            marcotest : {
-                env : {
-                    staging : {
-
-                    }
-                }
-            }
-        }
-        id: 'marcotest'
-    }
-};
+//let user = {
+//    TableName : 'users',
+//    Item: {
+//        app : {
+//            marcotest : {
+//                env : {
+//                    staging : {
+//
+//                    }
+//                }
+//            }
+//        }
+//        id: 'marcotest'
+//    }
+//};
 
 Promise.all([app].map(qry => {
     return new Promise((resolve,reject) => {

@@ -19,7 +19,7 @@ class DataStore {
         let qry = {
             TableName : 'applications',
             Key : {
-                id  : app 
+                appId  : app 
             }
         };
 
@@ -44,7 +44,7 @@ class DataStore {
                     return reject(new Error('Forbidden'));
                 }
 
-                return resolve(ld.assign({ id : item.id, name : item.name}, item.env[env]));
+                return resolve(ld.assign({ appId : item.appId, name : item.name}, item.env[env]));
             });
         });
     }

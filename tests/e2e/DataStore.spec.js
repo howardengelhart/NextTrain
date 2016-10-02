@@ -53,10 +53,10 @@ describe('DataStore', () => {
             let appsTable = {
                 TableName: 'applications',
                 KeySchema: [
-                   { AttributeName: 'id', KeyType: 'HASH' } // Partition Key
+                   { AttributeName: 'appId', KeyType: 'HASH' } // Partition Key
                 ],
                 AttributeDefinitions: [
-                    { AttributeName: 'id', AttributeType: 'S' }
+                    { AttributeName: 'appId', AttributeType: 'S' }
                 ],
                 ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 }
             };
