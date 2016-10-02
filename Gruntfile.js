@@ -1,12 +1,14 @@
 'use strict';
 const path = require('path');
 const Lambda = require('aws-sdk').Lambda;
+const inspect = require('util').inspect;
 
 module.exports = (grunt)=>  {
 
     grunt.initConfig({
         eslint : {
-            target: ['index.js','Gruntfile.js','src/**/*.js','tests/**/*.js']
+            target: ['index.js','Gruntfile.js','src/**/*.js',
+                'tests/**/*.js', 'db/**/*.js', 'scripts/**/*.js']
         },
 
         lambda : {
@@ -43,7 +45,42 @@ module.exports = (grunt)=>  {
                             'tests/unit/**', 'tests/e2e/**' ],
                 tasks : [ 'eslint', 'test:unit' ],
             }
+        },
+
+        createTables : {
+            test : {
+                options : {
+                    endpoint : 'http://localhost:8000',
+                    drop : true
+                }
+            },
+            prod : {
+                options : {
+                    drop : false
+                }
+            }
+        },
+
+        scanTables : {
+            test : {
+                options : {
+                    endpoint : 'http://localhost:8000'
+                }
+            },
+            prod : {
+                options : { }
+            }
+        },
+
+        putTables : {
+            test : {
+                options : {
+                    endpoint : 'http://localhost:8000',
+                    files : ['db/data/app-marco-test.js']
+                }
+            }
         }
+
     });
 
     grunt.loadNpmTasks('grunt-eslint');
@@ -260,7 +297,7 @@ module.exports = (grunt)=>  {
         if (action === 'upload') {
             func = lambdaUpload.bind(this);
         } else {
-            grunt.log.error(`Unexpected action: ${action}`);
+            grunt.log.errorlns(`Unexpected action: ${action}`);
             return false;
         }
 
@@ -289,5 +326,122 @@ module.exports = (grunt)=>  {
                 'lambdaUpload'
             ]);
         }
+    });
+
+    grunt.registerMultiTask('createTables', function() {
+        const tableDefs = require('./db/tables');
+        const dynamoUtils = require('./tests/helpers/dynamodb');
+        let done = this.async();
+
+        let opts = this.options({
+            region : grunt.option('region') || 'us-east-1',
+            tables : grunt.option('tables') || Object.keys(tableDefs)
+        });
+        if (!Array.isArray(opts.tables)) {
+            opts.tables = opts.tables.split(',');
+        }
+
+        if (grunt.option('drop') !== undefined) {
+            opts.drop = grunt.option('drop');
+        }
+
+        grunt.log.debug('opts:',opts);
+
+        let awsOpts = { region : opts.region };
+        if (opts.endpoint){
+            awsOpts.endpoint  = opts.endpoint;
+        }
+
+        function dropTables() {
+            if (!opts.drop) {
+                return Promise.resolve();
+            }
+            return dynamoUtils.deleteTables(opts.tables, awsOpts);
+        }
+
+        function createTables() {
+            let params = opts.tables.map( t => tableDefs[t] );
+            return dynamoUtils.createTables(params, awsOpts);
+        }
+
+        grunt.log.writelns('Creating tables: ', opts.tables);
+        dropTables()
+        .then(createTables)
+        .then(res => {
+            grunt.log.debug(inspect(res,{ depth : null }));
+            return done(true);
+        })
+        .catch( err => {
+            grunt.log.errorlns(err.message);
+            return done(false);
+        });
+    });
+
+    grunt.registerMultiTask('putTables', function() {
+        const dynamoUtils = require('./tests/helpers/dynamodb');
+        let done = this.async();
+
+        let opts = this.options({
+            region : grunt.option('region') || 'us-east-1'
+        });
+        
+        grunt.log.debug('opts:',opts);
+
+        let awsOpts = { region : opts.region };
+        if (opts.endpoint){
+            awsOpts.endpoint  = opts.endpoint;
+        }
+
+        return Promise.all(opts.files.map(datafile => {
+            grunt.log.writelns(`Load data from: ${datafile}`);
+            return dynamoUtils.putRecords(require(path.resolve(datafile)), awsOpts)
+                .then( res => {
+                    grunt.log.debug(inspect(res,{ depth : null }));
+                    return res;
+                });
+        }))
+        .then(() => {
+            return done(true);
+        })
+        .catch( err => {
+            grunt.log.errorlns(err.message);
+            return done(false);
+        });
+    });
+
+    grunt.registerMultiTask('scanTables', function() {
+        const dynamoUtils = require('./tests/helpers/dynamodb');
+        const tableDefs = require('./db/tables');
+        let done = this.async();
+
+        let opts = this.options({
+            region : grunt.option('region') || 'us-east-1',
+            tables : grunt.option('tables') || Object.keys(tableDefs)
+        });
+        if (!Array.isArray(opts.tables)) {
+            opts.tables = opts.tables.split(',');
+        }
+
+        grunt.log.debug('opts:',opts);
+
+        let awsOpts = { region : opts.region };
+        if (opts.endpoint){
+            awsOpts.endpoint  = opts.endpoint;
+        }
+
+        return Promise.all(opts.tables.map(table => {
+            grunt.log.debug(`Scanning table: ${table}`); 
+            return dynamoUtils.scanTable(table, awsOpts)
+                .then( res => {
+                    grunt.log.writelns(`Table =====> ${table}`);
+                    grunt.log.writelns(inspect(res,{ depth : null }));
+                    return res;
+                });
+        }))
+        .then(() => done(true) )
+        .catch( err => {
+            grunt.log.errorlns(err.message);
+            return done(false);
+        });
     });
 };

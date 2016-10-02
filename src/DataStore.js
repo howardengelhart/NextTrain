@@ -44,7 +44,25 @@ class DataStore {
                     return reject(new Error('Forbidden'));
                 }
 
-                return resolve(ld.assign({ appId : item.appId, name : item.name}, item.env[env]));
+                return resolve(
+                    ld.assign({ appId : item.appId, name : item.name}, item.env[env]));
+            });
+        });
+    }
+
+    getUsers(app, userList) {
+        return new Promise( (resolve, reject) => {
+            let qry = { RequestItems: { users : {  } } };
+            qry.RequestItems.users.Keys = userList.map(user => ({ appId: app, userId: user }));
+            
+            this.db.batchGet(qry, (error, data) => {
+                if (error) {
+                    log.error({ dbError: error },'Error on user lookup.');
+                    return reject(new Error('Internal Error'));
+                }
+
+                log.info({ dbResult : data},'application lookup result.');
+                return resolve( data.Responses );
             });
         });
     }

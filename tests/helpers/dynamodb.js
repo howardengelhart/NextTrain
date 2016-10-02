@@ -37,6 +37,9 @@ exports.deleteTables = (tables, config) => {
                 if (err) {
                     if (err.message === 'Cannot do operations on a non-existent table') {
                         resolve( {} );
+                    } else 
+                    if (err.message.match(/Requested resource not found/)) {
+                        resolve( {} );
                     } else {
                         reject(err);
                     }
@@ -51,19 +54,27 @@ exports.deleteTables = (tables, config) => {
 exports.putRecords = (records, config) => {
     const dynamodb = new aws.DynamoDB.DocumentClient(config);
 
-    if (!Array.isArray(records)) {
-        records = [ records ];
-    }
-
-    return Promise.all(records.map(qry => {
-        return new Promise((resolve,reject) => {
-            dynamodb.put(qry, (err, data) => {
-                if (err) {
-                    reject(err); 
-                } else {
-                    resolve(data);
-                }
-            });
+    return new Promise((resolve,reject) => {
+        dynamodb.batchWrite(records, (err, data) => {
+            if (err) {
+                reject(err); 
+            } else {
+                resolve(data);
+            }
         });
-    }));
+    });
+};
+
+exports.scanTable = (table, config) => {
+    const dynamodb = new aws.DynamoDB.DocumentClient(config);
+
+    return new Promise((resolve,reject) => {
+        dynamodb.scan({ TableName: table }, (err, data) => {
+            if (err) {
+                reject(err); 
+            } else {
+                resolve(data);
+            }
+        });
+    });
 };

@@ -1,0 +1,16 @@
+{
+    "env": {
+        "jasmine": true
+    },
+    "plugins": ["node"],
+    "extends": [
+        "eslint:recommended",
+        "plugin:node/recommended"
+    ],
+    "rules": {
+        "max-len": [
+            "error",
+            9999
+        ]
+    }
+}

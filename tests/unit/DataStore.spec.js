@@ -7,7 +7,8 @@ describe('DataStore', () => {
         const proxyquire = require('proxyquire');
         DocumentClient = jasmine.createSpy('DynamoDB.DocumentClient()').and.callFake(() =>  {
             return {
-                get   : jasmine.createSpy('db.get')
+                get         : jasmine.createSpy('db.get'),
+                batchGet    : jasmine.createSpy('db.batchGet')
             };
         });
 
@@ -130,6 +131,66 @@ describe('DataStore', () => {
                         pages : []
                     }
                 });
+            })
+            .then(done, done.fail);
+        });
+    });
+
+    describe('getUsers', () => {
+        
+        it('rejects if there is a db error', (done) => {
+            let err = new Error('fail');
+            db.batchGet.and.callFake((params, cb) => {
+                cb(err, null);
+            });
+            
+            ds.getUsers('a-123',['u-123','u-456'])
+            .then(done.fail, e => {
+                expect(e.message).toEqual('Internal Error');
+                expect(mockLog.error).toHaveBeenCalledWith(
+                    { dbError: err},'Error on user lookup.');
+            })
+            .then(done, done.fail);
+        });
+
+        it('returns an empty array if no users are found', (done) => {
+            db.batchGet.and.callFake((params, cb) => {
+                cb(null, { Responses : [] });
+            });
+
+            ds.getUsers('a-123',['u-123','u-456'])
+            .then(r => {
+                expect(r).toEqual([]);
+            })
+            .then(done, done.fail);
+        });
+
+        it('gets users', (done) => {
+            let params, users;
+            users = [
+                { appId : 'a-123', userId: 'u-123' },
+                { appId : 'a-123', userId: 'u-789' }
+            ];
+                    
+            db.batchGet.and.callFake((p, cb) => {
+                params = p;
+                cb(null, { Responses : users });
+            });
+
+            ds.getUsers('a-123',['u-123','u-456','u-789'])
+            .then((res) => {
+                expect(params).toEqual({
+                    RequestItems : {
+                        'users' : {
+                            Keys  : [
+                                { appId : 'a-123', userId: 'u-123' },
+                                { appId : 'a-123', userId: 'u-456' },
+                                { appId : 'a-123', userId: 'u-789' }
+                            ]
+                        }
+                    }
+                });
+                expect(res).toEqual( users);
             })
             .then(done, done.fail);
         });
