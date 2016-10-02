@@ -52,14 +52,10 @@ describe('DataStore', () => {
                     appId : 'a-123',
                     name : 'My App',
                     active : true,
-                    env : {
-                        test : {
-                            facebook : {
-                                appId : 'fb-1',
-                                verifyToken : 'fb-token1',
-                                pages : []
-                            }
-                        }
+                    facebook : {
+                        appId : 'fb-1',
+                        verifyToken : 'fb-token1',
+                        pages : []
                     }
                 }
             };
@@ -73,38 +69,9 @@ describe('DataStore', () => {
             
             ds.getApp('a-123','test')
             .then(done.fail, e => {
-                expect(e.message).toEqual('Forbidden');
+                expect(e.message).toEqual('Internal Error');
                 expect(mockLog.error).toHaveBeenCalledWith(
                     { dbError: err},'Error on application lookup.');
-            })
-            .then(done, done.fail);
-        });
-
-        it('rejects if there is no record', (done) => {
-            db.get.and.callFake((params, cb) => {
-                cb(null, {});
-            });
-            
-            ds.getApp('a-123','test')
-            .then(done.fail, e => {
-                expect(e.message).toEqual('Forbidden');
-                expect(mockLog.error).toHaveBeenCalledWith(
-                    'Failed on application lookup, a-123 not found.');
-            })
-            .then(done, done.fail);
-        });
-
-        it('rejects if the app is not active', (done) => {
-            db.get.and.callFake((params, cb) => {
-                mockApp.Item.active = false;
-                cb(null, mockApp);
-            });
-            
-            ds.getApp('a-123','test')
-            .then(done.fail, e => {
-                expect(e.message).toEqual('Forbidden');
-                expect(mockLog.error).toHaveBeenCalledWith(
-                    'Failed on application lookup, a-123 not active.');
             })
             .then(done, done.fail);
         });
@@ -125,6 +92,7 @@ describe('DataStore', () => {
                 expect(res).toEqual({
                     appId : 'a-123',
                     name: 'My App',
+                    active : true,
                     facebook : {
                         appId : 'fb-1',
                         verifyToken : 'fb-token1',

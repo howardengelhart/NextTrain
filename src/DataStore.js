@@ -15,7 +15,7 @@ class DataStore {
         this.db = new aws.DynamoDB.DocumentClient(opts);
     }
 
-    getApp(app, env ) {
+    getApp(app) {
         let qry = {
             TableName : 'applications',
             Key : {
@@ -27,25 +27,10 @@ class DataStore {
             this.db.get(qry, (error, data) => {
                 if (error) {
                     log.error({ dbError: error },'Error on application lookup.');
-                    return reject(new Error('Forbidden'));
+                    return reject(new Error('Internal Error'));
                 }
 
-                log.info({ dbResult : data},'application lookup result.');
-
-                let item = data.Item;
-
-                if (!item) {
-                    log.error(`Failed on application lookup, ${app} not found.`);
-                    return reject(new Error('Forbidden'));
-                }
-                
-                if (!item.active) {
-                    log.error(`Failed on application lookup, ${app} not active.`);
-                    return reject(new Error('Forbidden'));
-                }
-
-                return resolve(
-                    ld.assign({ appId : item.appId, name : item.name}, item.env[env]));
+                return resolve( data.Item );
             });
         });
     }
@@ -61,7 +46,6 @@ class DataStore {
                     return reject(new Error('Internal Error'));
                 }
 
-                log.info({ dbResult : data},'application lookup result.');
                 return resolve( data.Responses );
             });
         });

@@ -74,8 +74,7 @@ function onPost(event, context, app ) {
 exports.handler = (event, context ) => {
     log.info({'event': event, context: context},'New Request');
     let method = ld.get(event,'context.http-method');
-    let env    = ld.get(event,'context.stage');
-    let app    = ld.get(event,'params.path.app');
+    let appId  = ld.get(event,'params.path.app');
     let handler;
     
     if (method === 'GET') {
@@ -88,8 +87,19 @@ exports.handler = (event, context ) => {
         context.fail(err);
         return Promise.reject(err);
     }
-    return db.getApp(app, env)
+    return db.getApp(appId)
     .then( (app) => {
+
+        if (!app) {
+            log.error(`Failed on application lookup, ${appId} not found.`);
+            return Promise.reject(new Error('Forbidden'));
+        }
+        
+        if (!app.active) {
+            log.error(`Failed on application lookup, ${appId} not active.`);
+            return Promise.reject(new Error('Forbidden'));
+        }
+
         return handler(event,context,app);
     })
     .then(res => {

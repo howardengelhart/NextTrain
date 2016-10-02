@@ -78,6 +78,11 @@ module.exports = (grunt)=>  {
                     endpoint : 'http://localhost:8000',
                     files : ['db/data/app-marco-test.js']
                 }
+            },
+            prod : {
+                options : {
+                    files : ['db/data/app-marco-test.js']
+                }
             }
         }
 
@@ -356,7 +361,12 @@ module.exports = (grunt)=>  {
             if (!opts.drop) {
                 return Promise.resolve();
             }
-            return dynamoUtils.deleteTables(opts.tables, awsOpts);
+            return dynamoUtils.deleteTables(opts.tables, awsOpts)
+                .then( () => {
+                    return new Promise( resolve  =>  {
+                        setTimeout(resolve, 2000);
+                    });
+                });
         }
 
         function createTables() {
