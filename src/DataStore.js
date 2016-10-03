@@ -46,7 +46,24 @@ class DataStore {
                     return reject(new Error('Internal Error'));
                 }
 
-                return resolve( data.Responses );
+                return resolve( data.Responses.users );
+            });
+        });
+    }
+
+    putUsers( userList) {
+        return new Promise( (resolve, reject) => {
+            let records = {
+                RequestItems : {
+                    users : userList.map( user => ( { PutRequest : { Item :  user } } ) )
+                }
+            };
+            this.db.batchWrite(records, (err, data) => {
+                if (err) {
+                    reject(err); 
+                } else {
+                    resolve(data);
+                }
             });
         });
     }

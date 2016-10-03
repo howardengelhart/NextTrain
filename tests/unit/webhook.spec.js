@@ -5,7 +5,7 @@ describe('webhook', () => {
     const TEST_DATE = 1453929767464; //Wed Jan 27 2016 16:22:47 GMT-0500 (EST)
 
     let mockDispatch, mockLog, mockEvent, mockContext, mockApp,
-        DataStore, db, handler, exec ;
+        DataStore, db, handler ;
     
     beforeAll(() => {
         jasmine.clock().install();
@@ -37,7 +37,9 @@ describe('webhook', () => {
 
         DataStore = jasmine.createSpy('DataStore()').and.callFake(() =>  {
             return {
-                getApp   : jasmine.createSpy('db.getApp')
+                getApp      : jasmine.createSpy('db.getApp'),
+                getUsers    : jasmine.createSpy('db.getUsers'),
+                putUsers    : jasmine.createSpy('db.putUsers')
             };
         });
 
@@ -47,18 +49,20 @@ describe('webhook', () => {
             './dispatch' : mockDispatch
         }).handler;
         
-        exec = (cbErr,cbData) => {
-            db  = DataStore.calls.mostRecent().returnValue;
-            db.getApp.and.callFake( () => {
-                if (cbErr) {
-                    return Promise.reject(cbErr);
-                }
+        db  = DataStore.calls.mostRecent().returnValue;
+        db.getApp.and.callFake( () => {
+            return Promise.resolve(mockApp );
+        });
+        
+        db.getUsers.and.callFake( (app,userList) => {
+            let result = userList.map( (user) => ({ appId : app, userId : user }) );
+            return Promise.resolve(result );
+        });
 
-                return Promise.resolve(cbData || mockApp );
-            });
-
-            return handler(mockEvent, mockContext );
-        };
+        db.putUsers.and.callFake( () => {
+            return Promise.resolve ( {} );
+        });
+        
     });
 
     describe('PUT,DELETE', () => {
@@ -75,7 +79,7 @@ describe('webhook', () => {
 
         it('PUT responds with an invalid request error', (done) => {
             mockEvent.context['http-method'] = 'PUT';
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, (err) => {
                 expect(err.message).toEqual('Invalid request.');
                 expect(mockContext.fail).toHaveBeenCalledWith(err);
@@ -85,7 +89,7 @@ describe('webhook', () => {
 
         it('DELETE responds with an invalid request error', (done) => {
             mockEvent.context['http-method'] = 'DELETE';
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, (err) => {
                 expect(err.message).toEqual('Invalid request.');
                 expect(mockContext.fail).toHaveBeenCalledWith(err);
@@ -94,7 +98,7 @@ describe('webhook', () => {
         });
         
         it('Undefined context responds with an invalid request error', (done) => {
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, (err) => {
                 expect(err.message).toEqual('Invalid request.');
                 expect(mockContext.fail).toHaveBeenCalledWith(err);
@@ -104,7 +108,7 @@ describe('webhook', () => {
 
         it('Missing context responds with an invalid request error', (done) => {
             delete mockEvent.context;
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, (err) => {
                 expect(err.message).toEqual('Invalid request.');
                 expect(mockContext.fail).toHaveBeenCalledWith(err);
@@ -137,7 +141,7 @@ describe('webhook', () => {
         
         it('responds with an error if the request has no params', (done) => {
             delete mockEvent.params;
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, (err) => {
                 expect(err.message).toEqual('Invalid request.');
                 expect(mockContext.fail).toHaveBeenCalledWith(err);
@@ -147,7 +151,7 @@ describe('webhook', () => {
 
         it('responds with an error if params.querystring[hub.mode] != subscribe', (done) => {
             mockEvent.params.querystring['hub.mode'] = 'xxx';
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, (err) => {
                 expect(mockLog.error).toHaveBeenCalledWith(
                     'GET is not a subscribe request.');
@@ -159,7 +163,7 @@ describe('webhook', () => {
         
         it('rejects if there is no record', (done) => {
             mockApp = undefined;
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, e => {
                 expect(e.message).toEqual('Forbidden');
                 expect(mockLog.error).toHaveBeenCalledWith(
@@ -170,7 +174,7 @@ describe('webhook', () => {
 
         it('rejects if the app is not active', (done) => {
             mockApp.active = false; 
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, e => {
                 expect(e.message).toEqual('Forbidden');
                 expect(mockLog.error).toHaveBeenCalledWith(
@@ -181,7 +185,7 @@ describe('webhook', () => {
 
         it('responds with an error if the token lookup fails', (done) => {
             mockEvent.params.querystring['hub.verify_token'] = 'BAD TOKEN';
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, (err) => {
                 expect(mockLog.error).toHaveBeenCalledWith(
                     'Failed to verify My App tokens do not match.');
@@ -192,7 +196,7 @@ describe('webhook', () => {
         });
 
         it('responds to hub.challenge requests',(done)=>{
-            exec()
+            handler(mockEvent, mockContext)
             .then((res) => {
                 expect(res).toEqual(1242057029);
                 expect(mockContext.succeed).toHaveBeenCalledWith(1242057029);
@@ -245,7 +249,7 @@ describe('webhook', () => {
 
         it('will fail if the entry property is missing from the event',(done)=>{
             delete mockEvent['body-json'].entry;
-            exec()
+            handler(mockEvent, mockContext)
             .then(done.fail, err => {
                 expect(mockContext.fail).toHaveBeenCalledWith(err);
                 expect(err.message).toEqual('Invalid event type.');
@@ -255,7 +259,7 @@ describe('webhook', () => {
         
         it('will warn if the entry messaging property is missing',(done)=>{
             delete mockEvent['body-json'].entry[0].messaging;
-            exec()
+            handler(mockEvent, mockContext)
             .then(res => {
                 expect(mockLog.warn).toHaveBeenCalledWith('Unexpected entry: ',
                     mockEvent['body-json'].entry[0]);
@@ -267,7 +271,7 @@ describe('webhook', () => {
         
         it('will remove messages with no sender', (done) => {
             delete mockEvent['body-json'].entry[1].messaging[1].sender;
-            exec()
+            handler(mockEvent, mockContext)
             .then(res => {
                 expect(mockDispatch).toHaveBeenCalled();
                 let args = mockDispatch.calls.argsFor(0)[1];
@@ -285,7 +289,7 @@ describe('webhook', () => {
         
         it('will remove messages with no sender id', (done) => {
             delete mockEvent['body-json'].entry[1].messaging[1].sender.id;
-            exec()
+            handler(mockEvent, mockContext)
             .then(res => {
                 expect(mockDispatch).toHaveBeenCalled();
                 let args = mockDispatch.calls.argsFor(0)[1];
@@ -303,7 +307,7 @@ describe('webhook', () => {
         
         it('will remove messages with no timestamp', (done) => {
             delete mockEvent['body-json'].entry[1].messaging[1].timestamp;
-            exec()
+            handler(mockEvent, mockContext)
             .then(res => {
                 expect(mockDispatch).toHaveBeenCalled();
                 let args = mockDispatch.calls.argsFor(0)[1];
@@ -321,7 +325,7 @@ describe('webhook', () => {
         
         it('will remove old messages', (done) => {
             mockEvent['body-json'].entry[1].messaging[1].timestamp = TEST_DATE - 5001;
-            exec()
+            handler(mockEvent, mockContext)
             .then(res => {
                 expect(mockDispatch).toHaveBeenCalled();
                 let args = mockDispatch.calls.argsFor(0)[1];
@@ -354,9 +358,11 @@ describe('webhook', () => {
                 }
             );
             
-            exec()
+            handler(mockEvent, mockContext)
             .then(res => {
                 expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(db.getUsers).toHaveBeenCalledWith('a-123',[
+                    's-123', 's-789', 's-456' ]);
                 expect(mockDispatch).toHaveBeenCalled();
                 let args = mockDispatch.calls.argsFor(0)[1];
                 expect(args.length).toEqual(3);
@@ -365,6 +371,21 @@ describe('webhook', () => {
                 expect(args[2].sender.id).toEqual('s-456');
                 expect(args[2].timestamp).toEqual(TEST_DATE - 400);
                 expect(mockContext.succeed).toHaveBeenCalledWith(res);
+            })
+            .then(done, done.fail);
+        });
+
+        it('will store user updates if it receives any', (done) => {
+            let userList = [
+                { appId  : 'app1', userId : 'user1' },
+                { appId  : 'app1', userId : 'user2' }
+            ];
+
+            mockDispatch.and.returnValue(Promise.resolve(userList));
+
+            handler(mockEvent, mockContext)
+            .then( () => {
+                expect(db.putUsers).toHaveBeenCalledWith(userList);
             })
             .then(done, done.fail);
         });

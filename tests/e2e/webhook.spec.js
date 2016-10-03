@@ -85,4 +85,72 @@ describe('webhook', () => {
             .then(done,done.fail);
         });
     });
+
+    describe('POST', () => {
+        beforeEach( () => {
+            mockEvent = {
+                params: { path: { app : 'test-app1' } },
+                context : { 'stage' : 'test', 'http-method' : 'POST' },
+                'body-json' : {
+                    'object': 'page',
+                    'entry' : [
+                        {
+                            'id': '1083198791769324',
+                            'time': Date.now() - 1000,
+                            'messaging': [
+                                {
+                                    recipient: { id: '1083198791769324' },
+                                    timestamp: Date.now() - 1000,
+                                    sender: { id: 'test-app1-user1' },
+                                    postback: {
+                                        payload: 'msg1'
+                                    }
+                                },
+                                {
+                                    recipient: { id: '1083198791769324' },
+                                    timestamp: Date.now() - 1000,
+                                    sender: { id: 'test-app1-user2' },
+                                    postback: {
+                                        payload: 'msg2'
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            };
+        });
+
+        it('dispatches messages', (done) => {
+            mockDispatch.and.returnValue(Promise.resolve([
+                { appId :  'app1', userId : 'user1' },
+                { appId :  'app2', userId : 'user2' }
+            ]));
+            handler(mockEvent, mockContext)
+            .then(() => dynamoUtil.scanTable('users',config.aws) )
+            .then((users) => {
+                let args = mockDispatch.calls.argsFor(0);
+                expect(args[0].appId).toEqual('test-app1');
+                expect(args[1].length).toEqual(2);
+                expect(args[2]).toEqual({
+                    'test-app1-user1' : {
+                        userId : 'test-app1-user1',
+                        appId : 'test-app1',
+                        requests : [ { depart: 'station1', arrive : 'station2' } ]
+                    },
+                    'test-app1-user2' : {
+                        userId : 'test-app1-user2',
+                        appId : 'test-app1',
+                        requests : [ { arrive : 'station2' } ]
+                    }
+                });
+                expect(users.Items).toEqual(jasmine.arrayContaining([
+                        { appId: 'app1', userId: 'user1' },
+                        { appId: 'app2', userId: 'user2' }
+                ]));
+                expect(mockContext.succeed).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+    });
 });

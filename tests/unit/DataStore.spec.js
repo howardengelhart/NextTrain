@@ -8,7 +8,8 @@ describe('DataStore', () => {
         DocumentClient = jasmine.createSpy('DynamoDB.DocumentClient()').and.callFake(() =>  {
             return {
                 get         : jasmine.createSpy('db.get'),
-                batchGet    : jasmine.createSpy('db.batchGet')
+                batchGet    : jasmine.createSpy('db.batchGet'),
+                batchWrite  : jasmine.createSpy('db.batchWrite')
             };
         });
 
@@ -123,7 +124,7 @@ describe('DataStore', () => {
 
         it('returns an empty array if no users are found', (done) => {
             db.batchGet.and.callFake((params, cb) => {
-                cb(null, { Responses : [] });
+                cb(null, { Responses : { users : [] } });
             });
 
             ds.getUsers('a-123',['u-123','u-456'])
@@ -142,7 +143,7 @@ describe('DataStore', () => {
                     
             db.batchGet.and.callFake((p, cb) => {
                 params = p;
-                cb(null, { Responses : users });
+                cb(null, { Responses : { users : users } });
             });
 
             ds.getUsers('a-123',['u-123','u-456','u-789'])
@@ -163,5 +164,48 @@ describe('DataStore', () => {
             .then(done, done.fail);
         });
     });
+    
+    describe('putUsers', () => {
+        let userList;
+        beforeEach(() => {
+            userList = [
+                { appId : 'app1', userId : 'user1' },
+                { appId : 'app1', userId : 'user2' }
+            ];
+        });
 
+        it('rejects if there is a db error', (done) => {
+            let err = new Error('fail');
+            db.batchWrite.and.callFake((params, cb) => {
+                cb(err, null);
+            });
+            
+            ds.putUsers(userList)
+            .then(done.fail, e => {
+                expect(e.message).toEqual('fail');
+            })
+            .then(done, done.fail);
+        });
+
+        it('puts user records', (done) => {
+            let params;
+            db.batchWrite.and.callFake((p, cb) => {
+                params = p;
+                cb(null, {});
+            });
+            
+            ds.putUsers(userList)
+            .then( () => {
+                expect(params).toEqual({
+                    RequestItems : {
+                        users : [
+                            { PutRequest: { Item : { appId : 'app1', userId: 'user1' } } },
+                            { PutRequest: { Item : { appId : 'app1', userId: 'user2' } } }
+                        ]
+                    }
+                });
+            })
+            .then(done, done.fail);
+        });
+    });
 });

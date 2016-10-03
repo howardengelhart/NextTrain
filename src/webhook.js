@@ -68,7 +68,23 @@ function onPost(event, context, app ) {
         }
     }
 
-    return dispatch(app, messages.sort((a,b) => a.timestamp > b.timestamp ? 1 : -1) );
+    messages = messages.sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
+    return db.getUsers(app.appId, messages.map(msg => msg.sender.id))
+    .then( userList => {
+        let userMap = {} ;
+        for (let user of userList) {
+            userMap[user.userId] = user;
+        }
+
+        return dispatch(app,  messages, userMap);
+    })
+    .then( userList => {
+        if (userList) {
+            return db.putUsers(userList);
+        } else {
+            return {};
+        }
+    });
 }
 
 exports.handler = (event, context ) => {
