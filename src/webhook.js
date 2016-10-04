@@ -68,6 +68,11 @@ function onPost(event, context, app ) {
         }
     }
 
+    if (messages.length < 1) {
+        log.warn('No messages left to process.');
+        return Promise.resolve({});
+    }
+
     messages = messages.sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
     return db.getUsers(app.appId, messages.map(msg => msg.sender.id))
     .then( userList => {
