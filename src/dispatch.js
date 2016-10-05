@@ -1,6 +1,7 @@
 'use strict';
 
 const log = require('./log');
+const User = require('./User');
 const Message = require('thefacebook').Message;
 
 module.exports = (app, messages, userMap ) => {
@@ -19,12 +20,10 @@ module.exports = (app, messages, userMap ) => {
         let user  = userMap[msg.sender.id];
 
         if (!user) {
-            user = {
-                appId : app.appId,
-                userId : msg.sender.id
-            };
-            userUpdates.push(user);
+            user = new User({ appId : app.appId, userId : msg.sender.id });
         }
+        
+        userUpdates.push(user);
 
         return message.send(msg.sender.id,'Your message has been received.',token);
     }))

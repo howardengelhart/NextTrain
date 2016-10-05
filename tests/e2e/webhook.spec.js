@@ -3,6 +3,7 @@
 describe('webhook', () => {
     const mocks = require('../helpers/mocks');
     const dynamoUtil = require('../helpers/dynamodb');
+    const User = require('../../src/User');
 
     let mockDispatch, mockLog, mockEvent, mockContext, config, handler ;
     beforeEach(() => {
@@ -123,8 +124,8 @@ describe('webhook', () => {
 
         it('dispatches messages', (done) => {
             mockDispatch.and.returnValue(Promise.resolve([
-                { appId :  'app1', userId : 'user1' },
-                { appId :  'app2', userId : 'user2' }
+                new User({ appId :  'app1', userId : 'user1' }),
+                new User({ appId :  'app2', userId : 'user2' })
             ]));
             handler(mockEvent, mockContext)
             .then(() => dynamoUtil.scanTable('users',config.aws) )

@@ -3,6 +3,7 @@
 const aws       = require('aws-sdk');
 const ld        = require('lodash');
 const log       = require('./log');
+const User      = require('./User');
 
 class DataStore {
 
@@ -46,7 +47,7 @@ class DataStore {
                     return reject(new Error('Internal Error'));
                 }
 
-                return resolve( data.Responses.users );
+                return resolve( data.Responses.users.map( m => new User(m) ));
             });
         });
     }
@@ -55,7 +56,8 @@ class DataStore {
         return new Promise( (resolve, reject) => {
             let records = {
                 RequestItems : {
-                    users : userList.map( user => ( { PutRequest : { Item :  user } } ) )
+                    users : userList.map( user => ( 
+                        { PutRequest : { Item :  user.serialize() } } ) )
                 }
             };
             this.db.batchWrite(records, (err, data) => {
