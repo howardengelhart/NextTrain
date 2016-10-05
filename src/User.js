@@ -33,6 +33,14 @@ class User {
         return ld.assign({}, userData.get(this).session);
     }
 
+    get context() {
+        return userData.get(this).context;
+    }
+
+    set context(v) {
+        return userData.get(this).context = v;
+    }
+
     generateSession(ttl) {
         const hash = crypto.createHash('sha1');
         let props = userData.get(this);

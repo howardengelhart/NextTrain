@@ -70,7 +70,7 @@ describe('User', () => {
     });
 
     describe('properties', () => {
-        it('are read only', () => {
+        it('are mostly read only', () => {
             let u = new User({
                 appId : 'app1',
                 userId : 'user1',
@@ -92,8 +92,23 @@ describe('User', () => {
                 u.session = 'a';
             }).toThrowError('Cannot set property session of #<User> which has only a getter');
         });
-    });
 
+        it('except for context', () => {
+            let u = new User({
+                appId : 'app1',
+                userId : 'user1',
+                context : { foo : 'bar' },
+                session : {
+                    sessionId : 'session1',
+                    lastTouch : TEST_DATE,
+                    ttl : 250
+                }
+            });
+            expect(u.context).toEqual({foo : 'bar' });
+            u.context = 1;
+            expect(u.context).toEqual(1);
+        });
+    });
 
     describe('generateSession', () => {
         it('creates a sessionId using appId, userId and timestamp', () => {

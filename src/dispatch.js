@@ -22,7 +22,7 @@ module.exports = (app, messages, userMap ) => {
         if (!user) {
             user = new User({ appId : app.appId, userId : msg.sender.id });
         }
-        
+       
         userUpdates.push(user);
 
         return message.send(msg.sender.id,'Your message has been received.',token);

@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dynamodb": "java -Djava.library.path=./util/DynamoDBLocal_lib -jar ./util/DynamoDBLocal.jar -sharedDb -inMemory",
-    "otp" : "java -Xmx2G -jar util/otp-1.0.0-shaded.jar --build ./util --inMemory"
+    "otp": "java -Xmx2G -jar util/otp-1.0.0-shaded.jar --build ./util --inMemory"
   },
   "repository": {
     "type": "git",
