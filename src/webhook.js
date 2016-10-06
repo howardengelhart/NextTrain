@@ -93,7 +93,7 @@ function onPost(event, context, app ) {
 }
 
 exports.handler = (event, context ) => {
-    log.info({'event': event, context: context},'New Request');
+    log.trace({'event': event, context: context},'New Request');
     let method = ld.get(event,'context.http-method');
     let appId  = ld.get(event,'params.path.app');
     let handler;
@@ -130,7 +130,12 @@ exports.handler = (event, context ) => {
     })
     .catch(err => {
         log.error({'error': err},'Handler Failed.');
-        context.fail(err);
+        if (handler === onPost) {
+            context.succeed(err);
+        }
+        else {
+            context.fail(err);
+        }
         return Promise.reject(err);
     });
 };

@@ -251,7 +251,7 @@ describe('webhook', () => {
             delete mockEvent['body-json'].entry;
             handler(mockEvent, mockContext)
             .then(done.fail, err => {
-                expect(mockContext.fail).toHaveBeenCalledWith(err);
+                expect(mockContext.succeed).toHaveBeenCalledWith(err);
                 expect(err.message).toEqual('Invalid event type.');
             })
             .then(done, done.fail);
