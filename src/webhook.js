@@ -84,7 +84,7 @@ function onPost(event, context, app ) {
         return dispatch(app,  messages, userMap);
     })
     .then( userList => {
-        if (userList) {
+        if (userList && userList.length) {
             return db.putUsers(userList);
         } else {
             return {};

@@ -30,6 +30,18 @@ user record
 
 
 
+Questions:
+
+When is the next train to New York?
+intent=departing_train_schedule
+origin=[missing]
+destination=New York
+
+When does the next train arrive from New York?
+intent=arriving_train_schedule
+origin=New York
+destination=[missing]
+
 
 
 

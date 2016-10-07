@@ -10,6 +10,7 @@ class User {
         if ((!props.appId) || (!props.userId)) { 
             throw new Error('new User requires an appId and userId.');
         }
+
         userData.set(this, props);
         let session = props.session;
         let now = Date.now();
@@ -39,6 +40,13 @@ class User {
 
     set context(v) {
         return userData.get(this).context = v;
+    }
+
+    get data() {
+        if (!userData.get(this).data){
+            userData.get(this).data = {};
+        }
+        return userData.get(this).data;
     }
 
     generateSession(ttl) {
