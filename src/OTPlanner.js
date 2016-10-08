@@ -18,10 +18,9 @@ class OTPlanner {
         let _ = _data.get(this);
         return `http://${_.hostname}/${endpoint}${qs ? '?' + qstr(qs) : ''  }`;
     }
-    
-    findStops(params) {
+
+    sendRequest(path, params) {
         return new Promise( (resolve, reject) => {
-            let path = 'otp/routers/default/index/stops';
             let url = this.apiUrl(path,params);
             let opts = { json : true };
             request.get(url,opts,(err,resp,body) => {
@@ -40,6 +39,16 @@ class OTPlanner {
             });
         });
     }
+    
+    findStops(params) {
+        return this.sendRequest('otp/routers/default/index/stops', params);
+    }
+
+    findPlans(params) {
+        return this.sendRequest('otp/routers/default/plan', params);
+    }
+
+
 
 }
 

@@ -4,6 +4,7 @@ const log = require('./log');
 const ld = require('lodash');
 const fb = require('thefacebook');
 const OTPlanner = require('./OTPlanner');
+const moment = require('moment-timezone');
 
 class DepartingTripRequestHandler {
     constructor(job) {
@@ -97,6 +98,36 @@ class DepartingTripRequestHandler {
             templ.elements.push(new fb.GenericTemplateElement(cfg));
         }
 
+        return this.send(templ);
+    }
+
+    displayDate(dt) {
+        return moment(dt).tz('America/New_York').format('YYYY-MM-DD HH:mm:ss');
+    }
+
+    requestTripSelection (plans ) {
+        log.info('exec requestTripSelection');
+        let templ = new fb.GenericTemplate();
+
+        for (let i of plans.plan.itineraries) {
+            let payload = {
+                type : 'select_trip',
+                payload : i
+            };
+
+            let cfg = {
+                title : this.displayDate(i.startTime),
+                subtitle : moment(i.startTime).diff(moment(i.endTime), 'minutes') + ' minutes'
+            };
+
+            cfg.buttons = [
+                new fb.PostbackButton({ title : 'Select',
+                    payload : JSON.stringify(payload) })
+            ];
+
+            templ.elements.push(new fb.GenericTemplateElement(cfg));
+        }
+        
         return this.send(templ);
     }
 
@@ -200,6 +231,9 @@ class DepartingTripRequestHandler {
         if (this.job.type === 'postback') {
             if (this.payload.type === 'select_station') {
                 this.request.data.originStop = this.payload.stop;
+                if (!this.request.data.origin) {
+                    this.request.data.origin = this.payload.stop.name;
+                }
                 return this.evalState();
             }
         }
@@ -220,6 +254,9 @@ class DepartingTripRequestHandler {
         if (this.job.type === 'postback') {
             if (this.payload.type === 'select_station') {
                 this.request.data.destinationStop = this.payload.stop;
+                if (!this.request.data.destination) {
+                    this.request.data.destination = this.payload.stop.name;
+                }
                 return this.evalState();
             }
         }
@@ -228,7 +265,21 @@ class DepartingTripRequestHandler {
     }
 
     onReady() {
-        return this.send('Ready to work!');
+        let otp = this.otp;
+        let params = {
+            fromPlace : this.request.data.originStop.id,
+            toPlace: this.request.data.destinationStop.id,
+            mode : 'TRANSIT',
+            maxWalkDistance:804.672,
+            locale:'en',
+            numItineraries : 5,
+            showIntermediateStops: true
+        };
+
+        return otp.findPlans(params)
+        .then(result => {
+            return this.requestTripSelection(result);
+        });
     }
 
 
