@@ -10,6 +10,10 @@ class DepartingTripRequestHandler {
         this.job = job;
     }
 
+    send(msg) {
+        return this.message.send( this.job.user.userId, msg, this.job.token);
+    }
+
     get message() {
         if (!this._message) {
             this._message = new fb.Message();
@@ -25,11 +29,11 @@ class DepartingTripRequestHandler {
     }
 
     get request() {
-        return ld.get(this,'user.data.currentRequest');
+        return ld.get(this,'job.user.data.currentRequest');
     }
 
-    send(msg) {
-        return this.message.send( this.job.user.userId, msg, this.job.token);
+    get payload() {
+        return ld.get(this,'job.payload');
     }
 
     set state(state) {
@@ -37,7 +41,7 @@ class DepartingTripRequestHandler {
     }
     
     get state() {
-        return ld.get(this,'job.user.data.currentRequest').state;
+        return ld.get(this,'job.user.data.currentRequest.state');
     }
 
     requestOrigin() {
@@ -50,8 +54,19 @@ class DepartingTripRequestHandler {
         this.state = 'WAIT_ORIGIN';
         return this.send(text);
     }
+    
+    requestDestination() {
+        log.info('exec requestDestination');
+        let text = new fb.Text('I need to know where this trip ends.  ' +
+            'Send me the name of the station, or hit Send Location and I\'ll ' +
+            'try to find one nearby.');
+        text.quick_replies.push(new fb.LocationQuickReply() );
 
-    requestStationSelection(stations) {
+        this.state = 'WAIT_DESTIONATION';
+        return this.send(text);
+    }
+    
+    requestStationSelectionWide (stations, selectText) {
         log.info('exec requestStationSelection');
         let templ = new fb.GenericTemplate();
         
@@ -74,7 +89,8 @@ class DepartingTripRequestHandler {
 
             cfg.buttons = [
                 new fb.UrlButton({ title : 'Map', url : mapUrl }),
-                new fb.PostbackButton({ title : 'Select', payload : JSON.stringify(payload) })
+                new fb.PostbackButton({ title : (selectText || 'Select'),
+                    payload : JSON.stringify(payload) })
             ];
 
             log.info({element : cfg }, 'create Element');
@@ -84,7 +100,28 @@ class DepartingTripRequestHandler {
         return this.send(templ);
     }
 
-    getStationFromLocation(coordinates) {
+    requestStationSelection(stations, selectText) {
+        log.info('exec requestStationSelection');
+        let templ = new fb.GenericTemplate();
+        let cfg = { title : selectText };
+
+        cfg.buttons = stations.map( (station) => {
+            let payload = { type : 'select_station', stop : station };
+            let title = station.name;
+            if (station.dist) {
+                let distance = Math.round((station.dist * 0.000621371) * 10) / 10;
+                title = `${station.name} ${distance} m`;
+            }
+            return new fb.PostbackButton({ title : title, payload : JSON.stringify(payload) });
+        });
+        
+        templ.elements.push(new fb.GenericTemplateElement(cfg));
+
+        return this.send(templ);
+    }
+
+    getStationFromLocation(coordinates, selectText) {
+        log.info('exec getStationFromLocation');
         let otp = this.otp;
         let otpParams = {
             lat : coordinates.lat,
@@ -99,7 +136,7 @@ class DepartingTripRequestHandler {
             }
 
             log.info({ results : results }, 'OTP found stops');
-            return this.requestStationSelection(results);
+            return this.requestStationSelection(results, selectText);
         })
         .catch((err) => {
             log.error('Error: %s', err.message);
@@ -107,7 +144,7 @@ class DepartingTripRequestHandler {
         });
     }
 
-    getStationFromList() {
+    getStationFromList(stationName, selectText) {
         log.info('exec getStationFromList');
         return this.otp.findStops()
         .then((results) => {
@@ -115,14 +152,14 @@ class DepartingTripRequestHandler {
                 return this.send('No stations found, try again later.');
             }
 
-            let re = new RegExp(this.request.data.origin,'gi');
+            let re = new RegExp(stationName,'gi');
 
             let matches = results.filter( stop => {
                 return stop.name.match(re);
             });
 
             log.info({ 
-                text: this.job.msg.message.text,
+                text: stationName,
                 results : results.length, 
                 matches : matches.length }, 'MATCH CHECK');
 
@@ -130,12 +167,12 @@ class DepartingTripRequestHandler {
                 return this.send('No matching stations found, try again.');
             }
 
-            if (matches.length > 7) {
+            if (matches.length > 5) {
                 return this.send('Too many matching stations found, try again.');
             }
 
             log.info({ results : matches }, 'OTP found stops');
-            return this.requestStationSelection(matches);
+            return this.requestStationSelection(matches, selectText);
         })
         .catch((err) => {
             log.error('Error: %s', err.message);
@@ -143,50 +180,83 @@ class DepartingTripRequestHandler {
         });
     }
 
+    onNew() {
+        log.info('exec onNew');
+        let rqs = { type : 'schedule_departing', state : 'NEW' };
+        rqs.data = this.job.payload;
+        this.job.user.data.currentRequest = rqs;
+        return this.evalState();
+    }
+
     onWaitOrigin() {
+        log.info('exec onWaitOrigin, job.type=%s',this.job.type);
         if (this.job.type === 'location') {
-            return this.getStationFromLocation(this.job.payload.coordinates);
+            return this.getStationFromLocation(this.job.payload.coordinates, 'Select Origin');
         } else
         if (this.job.type === 'text') {
             this.request.data.origin = this.job.msg.message.text;
-            return this.getStationFromList();
+            return this.getStationFromList(this.request.data.origin, 'Select Origin');
         } else 
         if (this.job.type === 'postback') {
             if (this.payload.type === 'select_station') {
                 this.request.data.originStop = this.payload.stop;
-                return this.evalRequest();
+                return this.evalState();
             }
         }
         
         return Promise.resolve(this.job);
     }
 
-    onNew() {
-        log.info('exec onNew');
-        let rqs = { type : 'schedule_departing', state : 'NEW' };
-        rqs.data = this.job.payload;
-        this.job.user.data.currentRequest = rqs;
-        return this.evalRequest();
+    onWaitDestination() {
+        if (this.job.type === 'location') {
+            return this.getStationFromLocation(this.job.payload.coordinates,
+                'Select Destination');
+        } else
+        if (this.job.type === 'text') {
+            this.request.data.destination = this.job.msg.message.text;
+            return this.getStationFromList(this.request.data.destination, 
+                'Select Destination');
+        } else 
+        if (this.job.type === 'postback') {
+            if (this.payload.type === 'select_station') {
+                this.request.data.destinationStop = this.payload.stop;
+                return this.evalState();
+            }
+        }
+        
+        return Promise.resolve(this.job);
     }
 
-    evalRequest() {
-        log.info('exec evalRequest');
+    onReady() {
+        return this.send('Ready to work!');
+    }
+
+
+    evalState() {
+        log.info('exec evalState');
         let rqs = this.request;
         
         if (!rqs.data.origin) {
             return this.requestOrigin();
         }
-
+        else
         if (!rqs.data.originStop) {
-            return this.onWaitOrigin();
+            this.state = 'WAIT_ORIGIN';
+            return this.getStationFromList(this.request.data.origin, 'Select Origin');
         }
-
+        else
         if (!rqs.data.destination) {
             return this.requestDestination();
         }
-
-        this.state = 'READY';
-        return this.work();
+        else
+        if (!rqs.data.destinationStop) {
+            this.state = 'WAIT_DESTINATION';
+            return this.getStationFromList(this.request.data.destination, 'Select Destination');
+        }
+        else {
+            this.state = 'READY';
+            return this.work();
+        }
     }
 
     work() {
@@ -200,18 +270,10 @@ class DepartingTripRequestHandler {
             if (state === 'WAIT_ORIGIN') {
                 return this.onWaitOrigin();
             } 
-            //else
-            //if (state === 'WAIT_ORIGIN_ID') {
-            //    return this.onWaitOriginId();
-            //} 
-            //else
-            //if (state === 'WAIT_DESTINATION') {
-            //    return this.onWaitDestination();
-            //} 
-            //else
-            //if (state === 'WAIT_DESTINATION_ID') {
-            //    return this.onWaitDestinationId();
-            //} 
+            else
+            if (state === 'WAIT_DESTINATION') {
+                return this.onWaitDestination();
+            } 
             else
             if (state === 'READY') {
                 return this.onReady();

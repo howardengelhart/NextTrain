@@ -38,7 +38,8 @@ class UnknownRequestHandler {
         let message = new fb.Message();
         let user = this.job.user;
         let token = this.job.token;
-        return message.send(user.userId,'Sorry, didn\'t quite get that.',token);
+        return message.send(user.userId,'Sorry, didn\'t quite get that.',token)
+            .then(() => this.job);
     }
 }
 
@@ -56,30 +57,36 @@ function textPreprocessor(wit,msg) {
 }
 
 function dataPreprocessor(msg) {
-    let payload, type = 'unknown';
+    return new Promise((resolve) => {
+        let payload, type = 'unknown';
 
-    if (msg.message.attachments) {
-        if (msg.message.attachments[0].type === 'location') {
-            type = 'location';
-        } else {
-            type = 'attachment';
+        if (msg.postback) {
+            type = 'postback';
+            payload = msg.postback.payload;
+        } else 
+        if (msg.message) {
+            if (msg.message.quick_reply) {
+                type = 'postback';
+                payload = msg.message.quick_reply.payload;
+            }
+            else
+            if (msg.message.attachments) {
+                if (msg.message.attachments[0].type === 'location') {
+                    type = 'location';
+                } else {
+                    type = 'attachment';
+                }
+                payload = msg.message.attachments[0].payload;
+            } 
         }
-        payload = msg.message.attachments[0].payload;
-    } else
-    if (msg.message.postback) {
-        type = 'postback';
-        payload = msg.message.postback.payload;
-    } else 
-    if (msg.message.quick_reply) {
-        type = 'postback';
-        payload = msg.message.quick_reply.payload;
-    }
 
-    if (type === 'postback') {
-        payload = JSON.parse(payload);
-    }
+        if (type === 'postback') {
+            payload = JSON.parse(payload);
+        }
 
-    return Promise.resolve({ type : type, msg : msg, payload : payload });
+        log.info('resolving prprocessor');
+        return resolve({ type : type, msg : msg, payload : payload });
+    });
 }
 
 module.exports = (app, messages, users ) => {
@@ -97,12 +104,13 @@ module.exports = (app, messages, users ) => {
         log.info({ message : msg }, 'Dispatching message.' );
         let preProcessor;
 
-        if (msg.message.text) {
+        if (msg.message && msg.message.text && (!msg.message.quick_reply)) {
             preProcessor = textPreprocessor.bind({}, wit);
         } else {
             preProcessor = dataPreprocessor;
         }
 
+        log.info('calling preprocessor...');
         return preProcessor(msg)
         .then( (job) => {
             job.app = app;
@@ -117,8 +125,21 @@ module.exports = (app, messages, users ) => {
 
             log.info({ job : job }, 'Handle job.' );
 
-            handlerType = ld.get(job,'payload.intent',
-                ld.get(job,'user.data.currentRequest.type'));
+            handlerType = ld.get(job,'user.data.currentRequest.type');
+
+            if (!handlerType) {
+                handlerType = ld.get(job,'payload.intent');
+
+                if (!handlerType) {
+                    if (job.payload.destination) {
+                        job.payload.intent = handlerType = 'schedule_departing';
+                    }
+                    else
+                    if (job.payload.origin) {
+                        job.payload.intent = handlerType = 'schedule_arriving';
+                    }
+                }
+            }
 
             if (handlerType === 'schedule_departing') {
                 log.info('Create DepartingTripRequestHandler..');
@@ -136,6 +157,6 @@ module.exports = (app, messages, users ) => {
         return jobs.map(job => job.user);
     })
     .catch( (err) => {
-        log.error({error : err }, 'DISPATCH ERROR');
+        log.error({error : err.message }, 'DISPATCH ERROR');
     });
 };

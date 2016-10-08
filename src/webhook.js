@@ -129,7 +129,7 @@ exports.handler = (event, context ) => {
         return res;
     })
     .catch(err => {
-        log.error({'error': err},'Handler Failed.');
+        log.error({'error': err.message},'Handler Failed.');
         if (handler === onPost) {
             context.succeed(err);
         }
