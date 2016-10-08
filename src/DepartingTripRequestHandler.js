@@ -112,7 +112,7 @@ class DepartingTripRequestHandler {
         for (let i of plans.plan.itineraries) {
             let payload = {
                 type : 'select_trip',
-                payload : i
+                payload :  'payload'
             };
 
             let cfg = {
