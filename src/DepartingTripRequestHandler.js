@@ -64,7 +64,7 @@ class DepartingTripRequestHandler {
             'try to find one nearby.');
         text.quick_replies.push(new fb.LocationQuickReply() );
 
-        this.state = 'WAIT_DESTIONATION';
+        this.state = 'WAIT_DESTINATION';
         return this.send(text);
     }
     
