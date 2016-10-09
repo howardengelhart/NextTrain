@@ -92,10 +92,18 @@ function onPost(event, context, app ) {
     });
 }
 
+
 exports.handler = (event, context ) => {
-    log.trace({'event': event, context: context},'New Request');
+    log.info({'event': event, context: context},'New Request');
     let method = ld.get(event,'context.http-method');
+    let stage = ld.get(event,'context.stage');
     let appId  = ld.get(event,'params.path.app');
+    let appRootUrl = require('url').format({
+        protocol : ld.get(event,'params.header.CloudFront-Forwarded-Proto'),
+        host : ld.get(event,'params.header.Host'),
+        pathname : [ stage, appId].join('/')
+    });
+
     let handler;
     
     if (method === 'GET') {
@@ -121,6 +129,7 @@ exports.handler = (event, context ) => {
             return Promise.reject(new Error('Forbidden'));
         }
 
+        app.appRootUrl = appRootUrl;
         return handler(event,context,app);
     })
     .then(res => {

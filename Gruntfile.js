@@ -15,7 +15,8 @@ module.exports = (grunt)=>  {
             options : {
                 src : [ '**/*.js' ]
             },
-            webhook: {  }
+            webhook: {  },
+            tripview: {  }
         },
 
         jasmine_nodejs : {

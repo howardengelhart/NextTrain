@@ -5,6 +5,7 @@ const ld = require('lodash');
 const fb = require('thefacebook');
 const OTPlanner = require('./OTPlanner');
 const moment = require('moment-timezone');
+const compressAndStorePlan = require('./otputil').compressAndStorePlan;
 
 class DepartingTripRequestHandler {
     constructor(job) {
@@ -102,27 +103,24 @@ class DepartingTripRequestHandler {
     }
 
     displayDate(dt) {
-        return moment(dt).tz('America/New_York').format('YYYY-MM-DD HH:mm:ss');
+        return moment(dt).tz('America/New_York').format('ddd, h:mmA');
     }
 
     requestTripSelection (plans ) {
         log.info('exec requestTripSelection');
         let templ = new fb.GenericTemplate();
 
-        for (let i of plans.plan.itineraries) {
-            let payload = {
-                type : 'select_trip',
-                payload :  'payload'
-            };
-
+        for (let plan of plans) {
+            let i = plan.itinerary;
+            let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
+            log.info(`trip link: ${link}`);
             let cfg = {
                 title : this.displayDate(i.startTime),
-                subtitle : moment(i.startTime).diff(moment(i.endTime), 'minutes') + ' minutes'
+                subtitle : moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes'
             };
 
             cfg.buttons = [
-                new fb.PostbackButton({ title : 'Select',
-                    payload : JSON.stringify(payload) })
+                new fb.UrlButton({ title : 'View', url : link })
             ];
 
             templ.elements.push(new fb.GenericTemplateElement(cfg));
@@ -277,8 +275,11 @@ class DepartingTripRequestHandler {
         };
 
         return otp.findPlans(params)
-        .then(result => {
-            return this.requestTripSelection(result);
+        .then(plans  => {
+            return compressAndStorePlan(this.job.app.appId, plans);
+        })
+        .then(compressedPlans => {
+            return this.requestTripSelection(compressedPlans);
         });
     }
 
