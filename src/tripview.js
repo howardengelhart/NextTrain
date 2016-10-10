@@ -4,6 +4,7 @@ const log       = require('./log');
 const S3        = require('aws-sdk').S3;
 const moment = require('moment-timezone');
 const ld = require('lodash');
+const today = moment().tz('America/New_York');
 
 function getTrip(params) {
     return new Promise( (resolve, reject) => {
@@ -21,7 +22,14 @@ function getTrip(params) {
 }
 
 function displayDate(dt) {
-    return moment(dt).tz('America/New_York').format('ddd, h:mmA');
+    let m = moment(dt).tz('America/New_York');
+    let format = 'ddd, h:mmA';
+
+    if (m.isSame(today,'day')) {
+        format = 'h:mmA';
+    }
+
+    return moment(dt).tz('America/New_York').format(format);
 }
 
 exports.handler = (event, context ) => {
@@ -37,20 +45,30 @@ exports.handler = (event, context ) => {
         let deptTime = displayDate(trip.startTime);
         let arrTime = displayDate(trip.endTime);
         r.push('<div>');
-        r.push(`<div> ${trip.from} = ${trip.to} </div>`);
-        r.push(`<div> <p> Departs at ${deptTime}</p></div>`);
-        r.push(`<div> <p> Arrives at ${arrTime}</p></div>`);
-        r.push(`<div> Trip Time: ${tripTime} minutes </div>`);
-        r.push(`<div> Transfers: ${trip.transfers} </div>`);
+        r.push(`<h2> ${trip.from} to ${trip.to} </h2>`);
+        r.push(`Departs at ${deptTime}<br/>`);
+        r.push(`Arrives at ${arrTime}<br/>`);
+        r.push(`Trip Time: ${tripTime} minutes <br/>`);
+        r.push(`Transfers: ${trip.transfers} <br/>`);
        
         for (let leg of trip.legs) {
             let deptTime = displayDate(leg.from.departure);
             let arrTime = displayDate(leg.to.arrival);
             r.push('<div>');
-            r.push(`<div> <h2> ${leg.route} </h2> </div>`);
-            r.push(`<div> <h3> ${leg.from.name} - ${leg.to.name} </h3> </div>`);
-            r.push(`<div> <p> Departs ${leg.from.name} at ${deptTime}</p></div>`);
-            r.push(`<div> <p> Arrives ${leg.to.name} at ${arrTime}</p></div>`);
+            r.push('<p>');
+            r.push(`<b><u> ${leg.route} </u></b><br/>`);
+//            r.push(`<b> ${leg.from.name} - ${leg.to.name} </b> <br/>`);
+            r.push(`Departs ${leg.from.name} at ${deptTime}<br/>`);
+            r.push(`Arrives ${leg.to.name} at ${arrTime}<br/></p>`);
+            r.push('</p>');
+            if (leg.intermediateStops && leg.intermediateStops.length){
+                r.push('<h4> Stops </h4>');
+                r.push('<ul>');
+                for (let stop of leg.intermediateStops) {
+                    r.push(`<li>${stop.name}</li>`);
+                }
+                r.push('</ul>');
+            }
             r.push('</div>');
         }
         r.push('</div>');
