@@ -86,7 +86,7 @@ function dataPreprocessor(msg) {
             payload = JSON.parse(payload);
         }
 
-        log.info('resolving prprocessor');
+        log.debug('resolving prprocessor');
         return resolve({ payloadType : type, msg : msg, payload : payload });
     });
 }
@@ -103,7 +103,7 @@ module.exports = (app, messages, users ) => {
     log.trace({'users' : users });
 
     return Promise.all((messages || []).map( (msg) => {
-        log.info({ message : msg }, 'Dispatching message.' );
+        log.debug({ message : msg }, 'Dispatching message.' );
         let preProcessor;
 
         if (msg.message && msg.message.text && (!msg.message.quick_reply)) {
@@ -112,7 +112,7 @@ module.exports = (app, messages, users ) => {
             preProcessor = dataPreprocessor;
         }
 
-        log.info('calling preprocessor...');
+        log.debug('calling preprocessor...');
         return preProcessor(msg)
         .then( (job) => {
             job.app = app;
@@ -155,7 +155,7 @@ module.exports = (app, messages, users ) => {
                 handler = new UnknownRequestHandler(job);
             }
 
-            log.info('Call handler.work()');
+            log.debug('Call handler.work()');
             return handler.work()
                 .then(() => {
                     if (ld.get(job,'user.data.currentRequest.state') === 'DONE') {

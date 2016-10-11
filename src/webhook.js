@@ -3,7 +3,6 @@
 const ld        = require('lodash');
 const log       = require('./log');
 const dispatch  = require('./dispatch');
-const config    = require('./config');
 const DataStore = require('./DataStore');
 
 let db  = new DataStore(config.aws);
@@ -28,6 +27,7 @@ function onGet (event, context, app ) {
 function onPost(event, context, app ) {
     let messages = [];
     let body = event['body-json']; 
+    let maxMessageAge = ld.get(app,'maxMessageAge', 5000);
 
     if (!body.entry) {
         throw new Error('Invalid event type.');
@@ -52,7 +52,7 @@ function onPost(event, context, app ) {
                 continue;
             }
 
-            if ((Date.now() - ts) > config.maxMessageAge){
+            if ((Date.now() - ts) > maxMessageAge){
                 log.warn('Message is stale: ', message);
                 continue;
             }
@@ -117,6 +117,7 @@ exports.handler = (event, context ) => {
         context.fail(err);
         return Promise.reject(err);
     }
+
     return db.getApp(appId)
     .then( (app) => {
 
@@ -131,6 +132,8 @@ exports.handler = (event, context ) => {
         }
 
         app.appRootUrl = appRootUrl;
+
+        log.info(`Execute handler for method ${method}`);
         return handler(event,context,app);
     })
     .then(res => {

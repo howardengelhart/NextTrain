@@ -10,8 +10,10 @@ const TODAY = moment().tz('America/New_York');
 
 class TripRequestHandler {
     constructor(job, type) {
-        this.job = job;
-        this.type = type;
+        this.job    = job;
+        this.type   = type;
+        this.log    = log.child({ requestType : this.type, user : this.job.user.userId });
+        this.log.trace('Initialized.');
     }
 
     send(msg) {
@@ -53,7 +55,7 @@ class TripRequestHandler {
     }
     
     requestOrigin() {
-        log.info('exec requestOrigin');
+        this.log.debug('exec requestOrigin');
         let text = new fb.Text('I need to know where this trip starts.  ' +
             'Hit Send Location and I\'ll try to find a station nearby or just ' +
             'type in the name.');
@@ -64,7 +66,7 @@ class TripRequestHandler {
     }
     
     requestDestination() {
-        log.info('exec requestDestination');
+        this.log.debug('exec requestDestination');
         let text = new fb.Text('I need to know where this trip ends.  ' +
             'Type the name of the station, or hit Send Location and I\'ll ' +
             'try to find one nearby.');
@@ -89,7 +91,7 @@ class TripRequestHandler {
     //Optional alternative for formatting station choices
     //
     //requestStationSelectionWide (stations, selectText) {
-    //    log.info('exec requestStationSelection');
+    //    this.log.debug('exec requestStationSelection');
     //    let templ = new fb.GenericTemplate();
     //    
     //    for (let station of stations) {
@@ -115,7 +117,7 @@ class TripRequestHandler {
     //                payload : JSON.stringify(payload) })
     //        ];
 
-    //        log.info({element : cfg }, 'create Element');
+    //        this.log.debug({element : cfg }, 'create Element');
     //        templ.elements.push(new fb.GenericTemplateElement(cfg));
     //    }
 
@@ -123,7 +125,7 @@ class TripRequestHandler {
     //}
 
     requestStationSelection(stations, selectText) {
-        log.info('exec requestStationSelection');
+        this.log.debug('exec requestStationSelection');
         let templ = new fb.GenericTemplate();
         let cfg = { title : selectText };
 
@@ -143,7 +145,7 @@ class TripRequestHandler {
     }
     
     getStationFromLocation(coordinates, selectText) {
-        log.info('exec getStationFromLocation');
+        this.log.debug('exec getStationFromLocation');
         let otp = this.otp;
         let otpParams = {
             lat : coordinates.lat,
@@ -157,17 +159,17 @@ class TripRequestHandler {
                 return this.send('No local stations found, try typing one in.');
             }
 
-            log.info({ results : results }, 'OTP found stops');
+            this.log.debug({ results : results }, 'OTP found stops');
             return this.requestStationSelection(results, selectText);
         })
         .catch((err) => {
-            log.error('Error: %s', err.message);
+            this.log.error('Error: %s', err.message);
             return this.send('No stations found, try typing one in.');
         });
     }
 
     getStationFromList(stationName, selectText) {
-        log.info('exec getStationFromList');
+        this.log.debug('exec getStationFromList');
         return this.otp.findStops()
         .then((results) => {
             if (!results || !results.length) {
@@ -180,7 +182,7 @@ class TripRequestHandler {
                 return stop.name.match(re);
             });
 
-            log.info({ 
+            this.log.debug({ 
                 text: stationName,
                 results : results.length, 
                 matches : matches.length }, 'MATCH CHECK');
@@ -193,17 +195,17 @@ class TripRequestHandler {
                 return this.send('Too many matching stations found, try again.');
             }
 
-            log.info({ results : matches }, 'OTP found stops');
+            this.log.debug({ results : matches }, 'OTP found stops');
             return this.requestStationSelection(matches, selectText);
         })
         .catch((err) => {
-            log.error('Error: %s', err.message);
+            this.log.error('Error: %s', err.message);
             return this.send('No stations found, try typing one in.');
         });
     }
     
     evalState() {
-        log.info('exec evalState');
+        this.log.debug('exec evalState');
         let rqs = this.request;
         
         if (!rqs.data.origin) {
@@ -232,7 +234,7 @@ class TripRequestHandler {
     work() {
         let state = ld.get(this, 'job.user.data.currentRequest.state','NEW');
         let doWork = () => {
-            log.info(`doWork for state ${state}`);
+            this.log.info(`doWork for state ${state}`);
             if (state === 'NEW') {
                 return this.onNew();
             }
@@ -255,7 +257,7 @@ class TripRequestHandler {
     }
 
     onNew() {
-        log.info('exec onNew');
+        this.log.debug('exec onNew');
         let rqs = { type : this.type, state : 'NEW' };
         rqs.data = this.payload;
         this.user.data.currentRequest = rqs;
@@ -263,7 +265,7 @@ class TripRequestHandler {
     }
     
     onWaitOrigin() {
-        log.info('exec onWaitOrigin, job.payloadType=%s',this.job.payloadType);
+        this.log.debug('exec onWaitOrigin, job.payloadType=%s',this.job.payloadType);
         if (this.job.payloadtype === 'location') {
             return this.getStationFromLocation(this.payload.coordinates, 'Select Origin');
         } else
@@ -307,6 +309,17 @@ class TripRequestHandler {
         return Promise.resolve(this.job);
     }
 
+    finishRequest() {
+        this.state = 'DONE';
+        let history = this.user.data.tripHistory || [];
+        history.unshift(this.request);
+        while (history.length > 5) {
+            history.pop();
+        }
+        this.user.data.tripHistory = history;
+        return this;
+    }
+
 }
 
 class DepartingTripRequestHandler extends TripRequestHandler {
@@ -315,13 +328,13 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     }
     
     sendTrips (plans ) {
-        log.info('exec sendTrips');
+        this.log.debug('exec sendTrips');
         let templ = new fb.GenericTemplate();
 
         for (let plan of plans) {
             let i = plan.itinerary;
             let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
-            log.info(`trip link: ${link}`);
+            this.log.debug(`trip link: ${link}`);
             let cfg = {
                 title : this.displayDate(i.startTime),
                 subtitle : moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes'
@@ -349,19 +362,11 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             showIntermediateStops: true
         };
 
-        log.info({ otpParams : params }, 'calling findPlans');
+        this.log.debug({ otpParams : params }, 'calling findPlans');
         return otp.findPlans(params)
         .then(plans  => compressAndStorePlan(this.job.app.appId, plans) )
         .then(compressedPlans => this.sendTrips(compressedPlans) )
-        .then(() => {
-            this.state = 'DONE';
-            let history = this.user.data.tripHistory || [];
-            history.unshift(this.request);
-            while (history.length > 5) {
-                history.pop();
-            }
-            this.user.data.tripHistory = history;
-        });
+        .then(() => this.finishRequest() );
     }
 }
 
@@ -371,7 +376,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
     }
     
     sendTrips (plans ) {
-        log.info('exec sendTrips');
+        this.log.debug('exec sendTrips');
         let templ = new fb.GenericTemplate();
         let now = moment().tz('America/New_York');
 
@@ -380,13 +385,13 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             let i = plan.itinerary;
 
             if (moment(i.endTime).tz('America/New_York').isBefore(now)) {
-                log.info(`trip has endTime (${i.endTime}) < now, skip`);
+                this.log.debug(`trip has endTime (${i.endTime}) < now, skip`);
                 continue;
             }
 
             let arrivesIn = moment(i.endTime).tz('America/New_York').fromNow(true);
             let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
-            log.info(`trip link: ${link}`);
+            this.log.debug(`trip link: ${link}`);
             let cfg = {
                 title : `Scheduled to arrive in ${arrivesIn} (${this.displayDate(i.endTime)})`
 //                subtitle : `Scheduled to depart at ${this.displayDate(i.endTime)}`
@@ -419,19 +424,11 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             time : range.format('HH:MM:00')
         };
 
-        log.info({ otpParams : params }, 'calling findPlans');
+        this.log.debug({ otpParams : params }, 'calling findPlans');
         return otp.findPlans(params)
         .then(plans  => compressAndStorePlan(this.job.app.appId, plans) )
         .then(compressedPlans => this.sendTrips(compressedPlans) )
-        .then(() => {
-            this.state = 'DONE';
-            let history = this.user.data.tripHistory || [];
-            history.unshift(this.request);
-            while (history.length > 5) {
-                history.pop();
-            }
-            this.user.data.tripHistory = history;
-        });
+        .then(() => this.finishRequest() );
     }
 }
 
