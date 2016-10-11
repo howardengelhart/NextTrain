@@ -4,11 +4,15 @@ const log   = require('./log');
 const S3    = require('aws-sdk').S3;
 
 function objectExists (s3, params) {
-    log.info(params, 'HEAD');
+    log.debug(params, 'HEAD');
     return new Promise( (resolve) => {
         s3.headObject(params, (err,data) => {
             if (err) {
-                log.info(`HEAD ERROR: ${err.name || err.message || 'Unspecificed.' }`);
+                if (err.name === 'Forbidden') {
+                    log.debug(params,'Object does not exist in S3.');
+                } else {
+                    log.error(`HEAD ERROR: ${err.name || err.message || 'Unspecificed.' }`);
+                }
                 return resolve(false);
             } 
             log.info(data, 'HEAD DATA');
@@ -18,7 +22,7 @@ function objectExists (s3, params) {
 }
 
 function putObject (s3, params) {
-    log.info({ Bucket : params.Bucket, Key : params.Key }, 'PUT');
+    log.debug({ Bucket : params.Bucket, Key : params.Key }, 'PUT');
     return new Promise( (resolve, reject) => {
         s3.putObject(params, (err,data) => {
             if (err) {

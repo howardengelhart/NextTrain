@@ -54,26 +54,47 @@ class TripRequestHandler {
         return ld.get(this,'job.user');
     }
     
+    requestStop(prompt) {
+        let trip = ld.get(this,'user.data.tripHistory[0]');
+        let text = new fb.Text(prompt);
+        text.quick_replies.push(new fb.LocationQuickReply() );
+        if (trip) {
+            let re = new RegExp(this.request.data.destination,'gi');
+           
+            if (!trip.data.destinationStop.name.match(re)) {
+                text.quick_replies.push(new fb.TextQuickReply( { 
+                    title: trip.data.destinationStop.name.substr(0,18),
+                    payload: JSON.stringify({ type: 'stop', stop: trip.data.destinationStop })
+                }));
+            }
+
+            if (!trip.data.originStop.name.match(re)) {
+                text.quick_replies.push(new fb.TextQuickReply( { 
+                    title : trip.data.originStop.name.substr(0,18),
+                    payload : JSON.stringify({ type : 'stop', stop : trip.data.originStop })
+                }));
+            }
+        }
+        
+        return this.send(text);
+    }
+
     requestOrigin() {
         this.log.debug('exec requestOrigin');
-        let text = new fb.Text('I need to know where this trip starts.  ' +
+        let text = 'I need to know where this trip starts.  ' +
             'Hit Send Location and I\'ll try to find a station nearby or just ' +
-            'type in the name.');
-        text.quick_replies.push(new fb.LocationQuickReply() );
-
+            'type in the name.';
         this.state = 'WAIT_ORIGIN';
-        return this.send(text);
+        return this.requestStop(text);
     }
     
     requestDestination() {
         this.log.debug('exec requestDestination');
-        let text = new fb.Text('I need to know where this trip ends.  ' +
+        let text = 'I need to know where this trip ends.  ' +
             'Type the name of the station, or hit Send Location and I\'ll ' +
-            'try to find one nearby.');
-        text.quick_replies.push(new fb.LocationQuickReply() );
-
+            'try to find one nearby.';
         this.state = 'WAIT_DESTINATION';
-        return this.send(text);
+        return this.requestStop(text);
     }
     
     displayDate(dt) {
@@ -266,7 +287,7 @@ class TripRequestHandler {
     
     onWaitOrigin() {
         this.log.debug('exec onWaitOrigin, job.payloadType=%s',this.job.payloadType);
-        if (this.job.payloadtype === 'location') {
+        if (this.job.payloadType === 'location') {
             return this.getStationFromLocation(this.payload.coordinates, 'Select Origin');
         } else
         if (this.job.payloadType === 'text') {

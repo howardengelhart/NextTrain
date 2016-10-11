@@ -5,7 +5,7 @@ const log       = require('./log');
 const dispatch  = require('./dispatch');
 const DataStore = require('./DataStore');
 
-let db  = new DataStore(config.aws);
+let db  = new DataStore();
 
 function onGet (event, context, app ) {
     let hubMode =  ld.get(event,'params.querystring[\'hub.mode\']');

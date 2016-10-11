@@ -1,10 +1,11 @@
 'use strict';
-
+    
 const bunyan = require('bunyan');
-const data = {};
 
-if (!data.log){
-    data.log = bunyan.createLogger({ name : 'screenjack', level : 'info' });
+let log;
+
+if (!log){
+    log = bunyan.createLogger({ name : 'marco', level : 'info' });
 }
 
-module.exports = data.log;
+module.exports = log;
