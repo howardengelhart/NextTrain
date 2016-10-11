@@ -8,7 +8,7 @@ function objectExists (s3, params) {
     return new Promise( (resolve) => {
         s3.headObject(params, (err,data) => {
             if (err) {
-                log.info(err, 'HEAD ERROR');
+                log.info(`HEAD ERROR: ${err.name || err.message || 'Unspecificed.' }`);
                 return resolve(false);
             } 
             log.info(data, 'HEAD DATA');
@@ -33,7 +33,7 @@ function putObject (s3, params) {
 
 function compressPlanItinerary(plan, i) {
     return {
-        date : plan.date,
+        date : (plan.date - (plan.date % 3600000)), // round to the hour
         from : plan.from.name,
         to : plan.to.name,
         duration : i.duration,

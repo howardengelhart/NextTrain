@@ -3,7 +3,9 @@
 const log = require('./log');
 const User = require('./User');
 const Wit = require('./Wit');
-const DepartingTripRequestHandler = require('./DepartingTripRequestHandler') ;
+const tripHandlers = require('./DepartingTripRequestHandler') ;
+const DepartingTripRequestHandler = tripHandlers.DepartingTripRequestHandler;
+const ArrivingTripRequestHandler = tripHandlers.ArrivingTripRequestHandler;
 const fb = require('thefacebook');
 const ld = require('lodash');
 
@@ -52,7 +54,7 @@ function textPreprocessor(wit,msg) {
             payload[ent] = ld.get(res,`entities.${ent}[0].value`);
         }
 
-        return { type : 'text', msg : msg, payload : payload };
+        return { payloadType : 'text', msg : msg, payload : payload };
     });
 }
 
@@ -85,7 +87,7 @@ function dataPreprocessor(msg) {
         }
 
         log.info('resolving prprocessor');
-        return resolve({ type : type, msg : msg, payload : payload });
+        return resolve({ payloadType : type, msg : msg, payload : payload });
     });
 }
 
@@ -124,7 +126,7 @@ module.exports = (app, messages, users ) => {
             }
 
             log.info({ job : job }, 'Handle job.' );
-
+            
             handlerType = ld.get(job,'user.data.currentRequest.type');
 
             if (!handlerType) {
@@ -144,13 +146,24 @@ module.exports = (app, messages, users ) => {
             if (handlerType === 'schedule_departing') {
                 log.info('Create DepartingTripRequestHandler..');
                 handler = new DepartingTripRequestHandler(job);
+            } else
+            if (handlerType === 'schedule_arriving') {
+                log.info('Create ArrivingTripRequestHandler..');
+                handler = new ArrivingTripRequestHandler(job);
             } else {
                 log.info('Create UnknownRequestHandler..');
                 handler = new UnknownRequestHandler(job);
             }
 
             log.info('Call handler.work()');
-            return handler.work();
+            return handler.work()
+                .then(() => {
+                    if (ld.get(job,'user.data.currentRequest.state') === 'DONE') {
+                        log.info('currentRequest is DONE, reset user for next request.');
+                        delete job.user.data.currentRequest;
+                    }
+                    return job;
+                });
         });
     }))
     .then( (jobs) => {
