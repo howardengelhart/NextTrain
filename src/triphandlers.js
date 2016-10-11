@@ -33,6 +33,14 @@ class TripRequestHandler {
         }
         return this._otp;
     }
+    
+    get shouldSendTripsWide() {
+        return ld.get(this,'job.app.stageVars.sendTripsWide',false);
+    }
+
+    get numItineraries() {
+        return ld.get(this,'job.app.stageVars.numItineraries',3);
+    }
 
     get request() {
         return ld.get(this,'job.user.data.currentRequest');
@@ -59,21 +67,45 @@ class TripRequestHandler {
         let text = new fb.Text(prompt);
         text.quick_replies.push(new fb.LocationQuickReply() );
         if (trip) {
-            let re = new RegExp(this.request.data.destination,'gi');
-           
-            if (!trip.data.destinationStop.name.match(re)) {
-                text.quick_replies.push(new fb.TextQuickReply( { 
-                    title: trip.data.destinationStop.name.substr(0,18),
-                    payload: JSON.stringify({ type: 'stop', stop: trip.data.destinationStop })
-                }));
+            let re, newId;
+            
+            // If we are looking for an Origin, make sure the old trip does not
+            // match this trip's destination as we do not want to suggest a possible
+            // destination match for the origin.
+            // If we are looking for a Destination, then make sure we don't suggest
+            // something we've already used for the origin.
+            
+            if (this.state === 'WAIT_ORIGIN') {
+                re = new RegExp(ld.get(this,'request.data.destination',''),'gi');
+                newId = ld.get(this,'request.data.destinationStop.id','');
+            } else {
+                re = new RegExp(ld.get(this,'request.data.origin',''),'gi');
+                newId = ld.get(this,'request.data.originStop.id','');
             }
 
-            if (!trip.data.originStop.name.match(re)) {
-                text.quick_replies.push(new fb.TextQuickReply( { 
-                    title : trip.data.originStop.name.substr(0,18),
-                    payload : JSON.stringify({ type : 'stop', stop : trip.data.originStop })
-                }));
-            }
+            [trip.data.destinationStop, trip.data.originStop].forEach( (oldStop) => {
+                if ((!oldStop.name.match(re)) && (oldStop.id !== newId)) {
+                    text.quick_replies.push(new fb.TextQuickReply( { 
+                        title: oldStop.name.substr(0,18),
+                        payload: JSON.stringify({ type: 'stop', stop: oldStop })
+                    }));
+                }
+
+            });
+                
+            //if (!trip.data.destinationStop.name.match(re)) {
+            //    text.quick_replies.push(new fb.TextQuickReply( { 
+            //        title: trip.data.destinationStop.name.substr(0,18),
+            //        payload: JSON.stringify({ type: 'stop', stop: trip.data.destinationStop })
+            //    }));
+            //}
+
+            //if (!trip.data.originStop.name.match(re)) {
+            //    text.quick_replies.push(new fb.TextQuickReply( { 
+            //        title : trip.data.originStop.name.substr(0,18),
+            //        payload : JSON.stringify({ type : 'stop', stop : trip.data.originStop })
+            //    }));
+            //}
         }
         
         return this.send(text);
@@ -119,7 +151,7 @@ class TripRequestHandler {
     //        let mapUrl = `https://www.google.com/maps?q=${station.lat}%2C${station.lon}`;
 
     //        let payload = {
-    //            type : 'select_station',
+    //            type : 'stop',
     //            stop : station
     //        };
 
@@ -145,13 +177,14 @@ class TripRequestHandler {
     //    return this.send(templ);
     //}
 
-    requestStationSelection(stations, selectText) {
+    requestStationSelection(stations) {
         this.log.debug('exec requestStationSelection');
-        let templ = new fb.GenericTemplate();
-        let cfg = { title : selectText };
+        let action = stations.length > 1 ? 'Select' : 'Confirm';
+        let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
+        let templ = new fb.ButtonTemplate(`${action} ${stopType}`);
 
-        cfg.buttons = stations.map( (station) => {
-            let payload = { type : 'select_station', stop : station };
+        templ.buttons = stations.map( (station) => {
+            let payload = { type : 'stop', stop : station };
             let title = station.name;
             if (station.dist) {
                 let distance = Math.round((station.dist * 0.000621371) * 10) / 10;
@@ -159,13 +192,12 @@ class TripRequestHandler {
             }
             return new fb.PostbackButton({ title : title, payload : JSON.stringify(payload) });
         });
-        
-        templ.elements.push(new fb.GenericTemplateElement(cfg));
-
+       
+        log.info(`Sending ${stations.length} stops to user.`);
         return this.send(templ);
     }
     
-    getStationFromLocation(coordinates, selectText) {
+    getStationFromLocation(coordinates) {
         this.log.debug('exec getStationFromLocation');
         let otp = this.otp;
         let otpParams = {
@@ -181,7 +213,7 @@ class TripRequestHandler {
             }
 
             this.log.debug({ results : results }, 'OTP found stops');
-            return this.requestStationSelection(results, selectText);
+            return this.requestStationSelection(results );
         })
         .catch((err) => {
             this.log.error('Error: %s', err.message);
@@ -189,7 +221,7 @@ class TripRequestHandler {
         });
     }
 
-    getStationFromList(stationName, selectText) {
+    getStationFromList(stationName ) {
         this.log.debug('exec getStationFromList');
         return this.otp.findStops()
         .then((results) => {
@@ -217,7 +249,7 @@ class TripRequestHandler {
             }
 
             this.log.debug({ results : matches }, 'OTP found stops');
-            return this.requestStationSelection(matches, selectText);
+            return this.requestStationSelection(matches );
         })
         .catch((err) => {
             this.log.error('Error: %s', err.message);
@@ -288,14 +320,14 @@ class TripRequestHandler {
     onWaitOrigin() {
         this.log.debug('exec onWaitOrigin, job.payloadType=%s',this.job.payloadType);
         if (this.job.payloadType === 'location') {
-            return this.getStationFromLocation(this.payload.coordinates, 'Select Origin');
+            return this.getStationFromLocation(this.payload.coordinates);
         } else
         if (this.job.payloadType === 'text') {
             this.request.data.origin = this.job.msg.message.text;
-            return this.getStationFromList(this.request.data.origin, 'Select Origin');
+            return this.getStationFromList(this.request.data.origin);
         } else 
         if (this.job.payloadType === 'postback') {
-            if (this.payload.type === 'select_station') {
+            if (this.payload.type === 'stop') {
                 this.request.data.originStop = this.payload.stop;
                 if (!this.request.data.origin) {
                     this.request.data.origin = this.payload.stop.name;
@@ -309,16 +341,14 @@ class TripRequestHandler {
 
     onWaitDestination() {
         if (this.job.payloadType === 'location') {
-            return this.getStationFromLocation(this.payload.coordinates,
-                'Select Destination');
+            return this.getStationFromLocation(this.payload.coordinates);
         } else
         if (this.job.payloadType === 'text') {
             this.request.data.destination = this.job.msg.message.text;
-            return this.getStationFromList(this.request.data.destination, 
-                'Select Destination');
+            return this.getStationFromList(this.request.data.destination);
         } else 
         if (this.job.payloadType === 'postback') {
-            if (this.payload.type === 'select_station') {
+            if (this.payload.type === 'stop') {
                 this.request.data.destinationStop = this.payload.stop;
                 if (!this.request.data.destination) {
                     this.request.data.destination = this.payload.stop.name;
@@ -348,7 +378,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
         super(job,'schedule_departing');
     }
     
-    sendTrips (plans ) {
+    sendTripsWide (plans ) {
         this.log.debug('exec sendTrips');
         let templ = new fb.GenericTemplate();
 
@@ -357,19 +387,51 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
             this.log.debug(`trip link: ${link}`);
             let cfg = {
-                title : this.displayDate(i.startTime),
-                subtitle : moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes'
+                title : `Scheduled to depart at ${this.displayDate(i.startTime)}`,
+                subtitle : 'Trip lasts for ' +
+                    moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes'
             };
 
             cfg.buttons = [
-                new fb.UrlButton({ title : 'View', url : link })
+                new fb.UrlButton({ title : 'View', url : link }),
+                new fb.ShareButton()
             ];
 
             templ.elements.push(new fb.GenericTemplateElement(cfg));
         }
         
+        if (templ.elements.length < 1 ) {
+            return this.send('Sorry, but I wasn\'t able to find any trips. Try starting over?');
+        }
+
         return this.send(templ);
     }
+    
+    sendTrips (plans ) {
+        this.log.debug('exec sendTrips');
+        if (this.shouldSendTripsWide) {
+            return this.sendTripsWide(plans);
+        }
+        let templ = new fb.ButtonTemplate('Departing at');
+
+        for (let plan of plans) {
+            let i = plan.itinerary;
+            let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
+            let startTime = this.displayDate(i.startTime);
+            let tripTime = moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes';
+            let cfg = { title : `${startTime} - ${tripTime}`, url : link };
+
+            this.log.info({trip: cfg}, 'SEND TRIP');
+            templ.buttons.push(new fb.UrlButton(cfg));
+        }
+        
+        if (templ.buttons.length < 1 ) {
+            return this.send('Sorry, but I wasn\'t able to find any trips. Try starting over?');
+        }
+        
+        return this.send(templ);
+    }
+    
 
     onReady() {
         let otp = this.otp;
@@ -379,7 +441,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             mode : 'TRANSIT',
             maxWalkDistance:804.672,
             locale:'en',
-            numItineraries : 3,
+            numItineraries : this.numItineraries,
             showIntermediateStops: true
         };
 
@@ -398,31 +460,74 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
     
     sendTrips (plans ) {
         this.log.debug('exec sendTrips');
+        if (this.shouldSendTripsWide) {
+            return this.sendTripsWide(plans);
+        }
+
+        let templ = new fb.ButtonTemplate('Arriving in');
+        let now = moment().tz('America/New_York');
+
+        plans = (plans || []).sort((a,b) => ( a.itinerary.endTime > b.itinerary.endTime ));
+        for (let plan of plans) {
+            this.log.debug({ plan : plan}, 'HANDLE PLAN');
+            let i = plan.itinerary;
+            let endTime = this.displayDate(i.endTime);
+            
+            if (moment(i.endTime).tz('America/New_York').isBefore(now)) {
+                this.log.debug(`trip has endTime (${endTime}) < now, skip`);
+                continue;
+            }
+            
+            let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
+            let arrivesIn = moment(i.endTime).tz('America/New_York').fromNow(true);
+            
+            let cfg = { title : `${arrivesIn} - ${endTime}`, url : link };
+
+            this.log.info({trip: cfg}, 'SEND TRIP');
+            templ.buttons.push(new fb.UrlButton(cfg));
+        }
+
+        if (templ.buttons.length < 1 ) {
+            return this.send('Sorry, but I wasn\'t able to find any trips. Try starting over?');
+        }
+        
+        return this.send(templ);
+    }
+    
+    
+    sendTripsWide (plans ) {
+        this.log.debug('exec sendTripsWide');
         let templ = new fb.GenericTemplate();
         let now = moment().tz('America/New_York');
 
-        plans = plans.sort((a,b) => ( a.itinerary.endTime > b.itinerary.endTime ));
+        plans = (plans || []).sort((a,b) => ( a.itinerary.endTime > b.itinerary.endTime ));
         for (let plan of plans) {
             let i = plan.itinerary;
+            let endTime = this.displayDate(i.endTime);
 
             if (moment(i.endTime).tz('America/New_York').isBefore(now)) {
-                this.log.debug(`trip has endTime (${i.endTime}) < now, skip`);
+                this.log.debug(`trip has endTime (${endTime}) < now, skip`);
                 continue;
             }
 
-            let arrivesIn = moment(i.endTime).tz('America/New_York').fromNow(true);
+            //let arrivesIn = moment(i.endTime).tz('America/New_York').fromNow(true);
             let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
-            this.log.debug(`trip link: ${link}`);
             let cfg = {
-                title : `Scheduled to arrive in ${arrivesIn} (${this.displayDate(i.endTime)})`
-//                subtitle : `Scheduled to depart at ${this.displayDate(i.endTime)}`
+                title : `Scheduled to arrive at ${endTime}`
+//                title : `Scheduled to arrive in ${arrivesIn} (${this.displayDate(i.endTime)})`
             };
 
             cfg.buttons = [
-                new fb.UrlButton({ title : 'View', url : link })
+                new fb.UrlButton({ title : 'View', url : link }),
+                new fb.ShareButton()
             ];
 
             templ.elements.push(new fb.GenericTemplateElement(cfg));
+        }
+
+        log.debug(`checking elements length: ${templ.elements.length}`);
+        if (templ.elements.length < 1 ) {
+            return this.send('Sorry, but I wasn\'t able to find any trips. Try starting over?');
         }
         
         return this.send(templ);
@@ -438,11 +543,11 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             mode : 'TRANSIT',
             maxWalkDistance:804.672,
             locale:'en',
-            numItineraries : 3,
+            numItineraries : this.numItineraries,
             showIntermediateStops: true,
             arriveBy : true,
             date : range.format('MM-DD-YYYY'),
-            time : range.format('HH:MM:00')
+            time : range.format('HH:mm:00')
         };
 
         this.log.debug({ otpParams : params }, 'calling findPlans');

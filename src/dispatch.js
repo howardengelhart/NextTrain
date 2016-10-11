@@ -3,7 +3,7 @@
 const log = require('./log');
 const User = require('./User');
 const Wit = require('./Wit');
-const tripHandlers = require('./DepartingTripRequestHandler') ;
+const tripHandlers = require('./triphandlers') ;
 const DepartingTripRequestHandler = tripHandlers.DepartingTripRequestHandler;
 const ArrivingTripRequestHandler = tripHandlers.ArrivingTripRequestHandler;
 const fb = require('thefacebook');

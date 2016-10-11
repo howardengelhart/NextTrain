@@ -26,7 +26,7 @@
     "lodash": "4.16.2",
     "moment-timezone": "0.5.5",
     "request": "2.75.0",
-    "thefacebook": "git+https://github.com/howardengelhart/thefacebook.git#v0.2.1"
+    "thefacebook": "git+https://github.com/howardengelhart/thefacebook.git#v0.3.1"
   },
   "devDependencies": {
     "archiver": "1.1.0",
