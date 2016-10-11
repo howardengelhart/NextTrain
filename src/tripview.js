@@ -33,7 +33,8 @@ function displayDate(dt) {
 }
 
 exports.handler = (event, context ) => {
-    log.trace(event);
+    log.level(ld.get(event,'stage-variables.loglevel','info'));
+    log.debug(event);
     let itineraryId = event.params.querystring.i;
     let appId  = ld.get(event,'params.path.app');
     log.info(`appId=${appId}, itineraryId=${itineraryId}`);

@@ -12,8 +12,10 @@ exports.createMockContext = (functionName) => {
 
 exports.createMockLog = () => {
     return {
+        level : jasmine.createSpy('log.level'),
         info : jasmine.createSpy('log.info'),
         warn : jasmine.createSpy('log.warn'),
+        debug : jasmine.createSpy('log.debug'),
         trace : jasmine.createSpy('log.trace'),
         error : jasmine.createSpy('log.error')
     };

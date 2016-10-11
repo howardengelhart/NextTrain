@@ -94,7 +94,8 @@ function onPost(event, context, app ) {
 
 
 exports.handler = (event, context ) => {
-    log.info({'event': event, context: context},'New Request');
+    log.level(ld.get(event,'stage-variables.loglevel','info'));
+    log.debug({'event': event, context: context},'New Request');
     let method = ld.get(event,'context.http-method');
     let stage = ld.get(event,'context.stage');
     let appId  = ld.get(event,'params.path.app');
