@@ -495,7 +495,7 @@ module.exports = (grunt)=>  {
             if (!data.persistentMenu) {
                 return Promise.resolve(data);
             }
-            grunt.log.writelns(`set persistent menu`);
+            grunt.log.writelns('set persistent menu');
             return setting.apply(
                 new fb.PersistentMenu( data.persistentMenu) , data.token)
                     .then(() => data);

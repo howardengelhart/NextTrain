@@ -45,6 +45,77 @@ class UnknownRequestHandler {
     }
 }
 
+/*
+class HelpMenu {
+    constructor() {
+        let menuItem = (t,i) => (new fb.PostbackButton({ 
+            title : t, payload : JSON.stringify({ type : 'MAIN-MENU', item : i })
+        }));
+        this.templ = new fb.ButtonTemplate('Menu', [
+            menuItem('Get Help', 'help'),
+            menuItem('Find departing train', 'schedule_departing'),
+            menuItem('Find arriving train', 'schedule_arriving')
+        ]);
+        this.message = new fb.Message();
+    }
+
+    send(userId, token) {
+        return this.message.send(userId,this.templ,token); 
+    }
+}
+*/
+
+class WelcomeRequestHandler {
+    constructor(job) {
+        this.job = job;
+        this.speech = [
+            'Hi there! I am here to help you find a train... in New Jersey.' ,
+            'You can send me questions like..' +
+            '"When does the next train leave Hamilton for New York?", or simply ' +
+                '"When is the next Train to New York?".. I\'ll help you find a station near by.',
+            'You can also ask about arriving trains.. "When does the next train from ' +
+                'Hoboken arrive?"',
+            'Give it a try!'
+        ];
+    }
+    
+    send(msg) {
+        return this.message.send( this.job.user.userId, msg, this.job.token);
+    }
+
+    get message() {
+        if (!this._message) {
+            this._message = new fb.Message();
+        }
+        return this._message;
+    }
+
+    work() {
+        let rqs = ld.get(this,'job.user.data.currentRequest');
+        if (!rqs) {
+            rqs = { type : 'welcome', index : 0, state : 'ACTIVE' };
+            this.job.user.data.currentRequest = rqs;
+        }
+
+        let line = this.speech[rqs.index++];
+        if (!line) {
+            rqs.state = 'DONE';
+            return Promise.resolve({});
+        }
+
+        let text = new fb.Text(line);
+        if (rqs.index < this.speech.length) {
+            text.quick_replies.push(new fb.TextQuickReply( { 
+                title : 'Continue', payload : JSON.stringify({ type : 'welcome' })
+            }));
+        } else {
+            rqs.state = 'DONE';
+        }
+        return this.send(text);
+    }
+}
+
+
 function textPreprocessor(wit,msg) {
     return wit.message(msg.message.text)
     .then(res => {
@@ -129,17 +200,27 @@ module.exports = (app, messages, users ) => {
             
             handlerType = ld.get(job,'user.data.currentRequest.type');
 
-            if (!handlerType) {
-                handlerType = ld.get(job,'payload.intent');
+            if (handlerType === 'welcome') {
+                // Users can bail from the Welcome message, if they hit continue
+                // the payload.type on the message will be "welcome".
+                handlerType = undefined; 
+            }
 
-                if (!handlerType) {
-                    if (job.payload.destination) {
-                        job.payload.intent = handlerType = 'schedule_departing';
+            if (!handlerType) {
+                if (job.payloadType === 'text') {
+                    handlerType = ld.get(job,'payload.intent');
+
+                    if (!handlerType) {
+                        if (job.payload.destination) {
+                            job.payload.intent = handlerType = 'schedule_departing';
+                        }
+                        else
+                        if (job.payload.origin) {
+                            job.payload.intent = handlerType = 'schedule_arriving';
+                        }
                     }
-                    else
-                    if (job.payload.origin) {
-                        job.payload.intent = handlerType = 'schedule_arriving';
-                    }
+                } else {
+                    handlerType = ld.get(job,'payload.type');
                 }
             }
 
@@ -150,6 +231,10 @@ module.exports = (app, messages, users ) => {
             if (handlerType === 'schedule_arriving') {
                 log.info('Create ArrivingTripRequestHandler..');
                 handler = new ArrivingTripRequestHandler(job);
+            } else
+            if (handlerType === 'welcome') {
+                log.info('Create WelcomeRequestHandler..');
+                handler = new WelcomeRequestHandler(job);
             } else {
                 log.info('Create UnknownRequestHandler..');
                 handler = new UnknownRequestHandler(job);
