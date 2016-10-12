@@ -262,6 +262,13 @@ class TripRequestHandler {
         let rqs = this.request;
         
         if (!rqs.data.origin) {
+            // If they typed in a destination, lets make sure its valid before
+            // we ask them for an origin.
+            if ((rqs.data.destination) && (!rqs.data.destinationStop)){
+                this.state = 'WAIT_DESTINATION';
+                return this.getStationFromList(
+                    this.request.data.destination, 'Select Destination');
+            } 
             return this.requestOrigin();
         }
         else
