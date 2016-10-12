@@ -48,6 +48,13 @@ module.exports = (grunt)=>  {
             }
         },
 
+        configureBot : {
+            'marcoTest' : {
+                appId : 'tb-marco-1',
+                pageId : '1757069501222687'
+            }
+        },
+
         createTables : {
             test : {
                 options : {
@@ -453,6 +460,64 @@ module.exports = (grunt)=>  {
         .catch( err => {
             grunt.log.errorlns(err.message);
             return done(false);
+        });
+    });
+
+    grunt.registerMultiTask('configureBot', function() {
+        const DataStore = require('./src/DataStore');
+        const fb = require('thefacebook');
+
+        let done = this.async();
+        //let config = this.data;
+        let setting = new fb.ThreadSetting();
+
+        let setGreeting = (data) => {
+            if (!data.greetingText) {
+                return Promise.resolve(data);
+            }
+            grunt.log.writelns('set greeting text');
+            return setting.apply(new fb.GreetingText(data.greetingText), data.token)
+                .then(() => data);
+        };
+
+        let setStart = (data) => {
+            if (!data.getStarted) {
+                return Promise.resolve(data);
+            }
+
+            grunt.log.writelns('set get started button');
+            return setting.apply(
+                new fb.GetStartedButton({ payload : data.getStarted }), data.token)
+                    .then(() => data);
+        };
+
+        let setMenu = (data) => {
+            if (!data.persistentMenu) {
+                return Promise.resolve(data);
+            }
+            grunt.log.writelns(`set persistent menu`);
+            return setting.apply(
+                new fb.PersistentMenu( data.persistentMenu) , data.token)
+                    .then(() => data);
+        };
+
+        let getAppPage = (cfg) => {
+            let ds = new DataStore();
+            grunt.log.writelns(`Lookup app: ${cfg.appId}, page: ${cfg.pageId}`);
+            return ds.getApp(cfg.appId)
+            .then((app) => {
+                return app.facebook.pages.filter((page) => (page.id === cfg.pageId))[0];
+            });
+        };
+
+        getAppPage(this.data)
+        .then(setGreeting)
+        .then(setStart)
+        .then(setMenu)
+        .then(() => done(true) )
+        .catch(e => {
+            grunt.log.errorlns(e);
+            done(false);
         });
     });
 };
