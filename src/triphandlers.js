@@ -177,9 +177,11 @@ class TripRequestHandler {
     
     //Optional alternative for formatting station choices
     
-    requestStationSelectionWide (stations, selectText) {
+    requestStationSelectionWide (stations) {
         this.log.debug('exec requestStationSelectionWide');
         let templ = new fb.GenericTemplate();
+        let action = stations.length > 1 ? 'Select' : 'Confirm';
+        let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
         
         for (let station of stations) {
             let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}`;
@@ -205,7 +207,7 @@ class TripRequestHandler {
 
             cfg.buttons = [
 //                new fb.UrlButton({ title : 'Map', url : mapUrl }),
-                new fb.PostbackButton({ title : (selectText || 'Select'),
+                new fb.PostbackButton({ title : `${action} ${stopType}`,
                     payload : JSON.stringify(payload) })
             ];
 
@@ -501,6 +503,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
         return otp.findPlans(params)
         .then(plans  => compressAndStorePlan(this.job.app.appId, plans) )
         .then(compressedPlans => this.sendTrips(compressedPlans) )
+        .then(() => this.send('Can I help you with something else?'))
         .then(() => this.finishRequest() );
     }
 }
@@ -606,6 +609,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
         return otp.findPlans(params)
         .then(plans  => compressAndStorePlan(this.job.app.appId, plans) )
         .then(compressedPlans => this.sendTrips(compressedPlans) )
+        .then(() => this.send('Can I help you with something else?'))
         .then(() => this.finishRequest() );
     }
 }

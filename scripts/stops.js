@@ -1,11 +1,9 @@
 'use strict';
+/* eslint-disable no-console */
 const ld = require('lodash');
-const aws = require('aws-sdk');
 const googleKey = 'KEY-GOES-HERE';
 const request = require('request');
 const S3    = require('aws-sdk').S3;
-const fs = require('fs');
-const inspect = require('util').inspect;
 
 let stops = require('./stops.json');
 
@@ -52,7 +50,7 @@ let xferMap = (stop) => {
     });
 };
 
-let wait = () => { return new Promise((resolve) => setTimeout(resolve, 250)); }
+let wait = () => { return new Promise((resolve) => setTimeout(resolve, 250)); };
 
 let work = () => {
     let stop = stops.shift();
@@ -61,7 +59,7 @@ let work = () => {
     }
     console.log('Stop ==> ', stop.name);
     return xferMap(stop).then(wait).then(work);
-} 
+};
 
 work()
 .then(() => {

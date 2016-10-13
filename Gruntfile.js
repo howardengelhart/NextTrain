@@ -473,7 +473,8 @@ module.exports = (grunt)=>  {
 
         let setGreeting = (data) => {
             if (!data.greetingText) {
-                return Promise.resolve(data);
+                return setting.remove(new fb.GreetingText(), data.token)
+                    .then(() => data, () => data);
             }
             grunt.log.writelns('set greeting text');
             return setting.apply(new fb.GreetingText(data.greetingText), data.token)
@@ -482,7 +483,8 @@ module.exports = (grunt)=>  {
 
         let setStart = (data) => {
             if (!data.getStarted) {
-                return Promise.resolve(data);
+                return setting.remove(new fb.GetStartedButton(), data.token)
+                    .then(() => data, () => data);
             }
 
             grunt.log.writelns('set get started button');
@@ -493,7 +495,8 @@ module.exports = (grunt)=>  {
 
         let setMenu = (data) => {
             if (!data.persistentMenu) {
-                return Promise.resolve(data);
+                return setting.remove(new fb.PersistentMenu(), data.token)
+                    .then(() => data, () => data);
             }
             grunt.log.writelns('set persistent menu');
             return setting.apply(
