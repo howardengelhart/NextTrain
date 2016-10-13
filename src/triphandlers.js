@@ -44,6 +44,10 @@ class TripRequestHandler {
         return ld.get(this,'job.app.stageVars.sendTripsWide',false);
     }
 
+    get shouldRequestStationSelectionWide() {
+        return ld.get(this,'job.app.stageVars.requestStationSelectionWide',false);
+    }
+
     get numItineraries() {
         return ld.get(this,'job.app.stageVars.numItineraries',3);
     }
@@ -97,6 +101,10 @@ class TripRequestHandler {
             if (newName.length < 18) {
                 break;
             }
+        }
+
+        if (newName.length > 20) {
+            newName = newName.substr(0,18) + '..';
         }
 
         return newName;
@@ -168,43 +176,51 @@ class TripRequestHandler {
    
     
     //Optional alternative for formatting station choices
-    //
-    //requestStationSelectionWide (stations, selectText) {
-    //    this.log.debug('exec requestStationSelection');
-    //    let templ = new fb.GenericTemplate();
-    //    
-    //    for (let station of stations) {
-    //        let mapUrl = `https://www.google.com/maps?q=${station.lat}%2C${station.lon}`;
+    
+    requestStationSelectionWide (stations, selectText) {
+        this.log.debug('exec requestStationSelectionWide');
+        let templ = new fb.GenericTemplate();
+        
+        for (let station of stations) {
+            let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}`;
+            let mapUrl = `https://www.google.com/maps?q=${station.lat}%2C${station.lon}`;
+            let imgUrl = `${s3Bucket}/img/njtransit/rail/${station.code}.png`;
+            let stopName = this.abbrevStopName(station.name);
 
-    //        let payload = {
-    //            type : 'stop',
-    //            stop : station
-    //        };
+            let payload = {
+                type : 'stop',
+                stop : station
+            };
 
-    //        let cfg = {
-    //            title : station.name
-    //        };
+            let cfg = {
+                title : stopName,
+                item_url : mapUrl,
+                image_url : imgUrl
+            };
 
-    //        if (station.dist) {
-    //            let distance = Math.round((station.dist * 0.000621371) * 10) / 10;
-    //            cfg.subtitle = `${distance} miles away`;
-    //        }
+            if (station.dist) {
+                let distance = Math.round((station.dist * 0.000621371) * 10) / 10;
+                cfg.subtitle = `${distance} miles away`;
+            }
 
-    //        cfg.buttons = [
-    //            new fb.UrlButton({ title : 'Map', url : mapUrl }),
-    //            new fb.PostbackButton({ title : (selectText || 'Select'),
-    //                payload : JSON.stringify(payload) })
-    //        ];
+            cfg.buttons = [
+//                new fb.UrlButton({ title : 'Map', url : mapUrl }),
+                new fb.PostbackButton({ title : (selectText || 'Select'),
+                    payload : JSON.stringify(payload) })
+            ];
 
-    //        this.log.debug({element : cfg }, 'create Element');
-    //        templ.elements.push(new fb.GenericTemplateElement(cfg));
-    //    }
+            this.log.debug({element : cfg }, 'create Element');
+            templ.elements.push(new fb.GenericTemplateElement(cfg));
+        }
 
-    //    return this.send(templ);
-    //}
+        return this.send(templ);
+    }
 
     requestStationSelection(stations) {
         this.log.debug('exec requestStationSelection');
+        if (this.shouldRequestStationSelectionWide) {
+            return this.requestStationSelectionWide(stations);
+        }
         let action = stations.length > 1 ? 'Select' : 'Confirm';
         let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
         let templ = new fb.ButtonTemplate(`${action} ${stopType}`);
@@ -421,8 +437,10 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
             this.log.debug(`trip link: ${link}`);
             let cfg = {
-                title : `Scheduled to depart at ${this.displayDate(i.startTime)}`,
-                subtitle : 'Trip lasts for ' +
+                title : `Departs ${this.abbrevStopName(i.from)} - ` +
+                    this.displayDate(i.startTime),
+                subtitle : `Arrives ${this.abbrevStopName(i.to)} - ` +
+                    `${this.displayDate(i.endTime)}. Trip time is ` +
                     moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes'
             };
 
@@ -547,7 +565,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             //let arrivesIn = moment(i.endTime).tz('America/New_York').fromNow(true);
             let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
             let cfg = {
-                title : `Scheduled to arrive at ${endTime}`
+                title : `Arrives ${this.abbrevStopName(i.to)} - ${endTime}`
 //                title : `Scheduled to arrive in ${arrivesIn} (${this.displayDate(i.endTime)})`
             };
 
