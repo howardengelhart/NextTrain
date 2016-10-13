@@ -496,7 +496,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     getRequestOriginText() {
         let text = 'Departing where?';
         if (this.noob) {
-            text += 'Type the name of the station, or hit Send Location and ' +
+            text += ' Type the name of the station, or hit Send Location and ' +
                 'I\'ll try to find a station nearby.';
         }
         return text;
@@ -505,7 +505,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     getRequestDestinationText() {
         let text = 'What\'s the destination?';
         if (this.noob) {
-            text += 'Type the name of the station, or hit Send Location and ' +
+            text += ' Type the name of the station, or hit Send Location and ' +
                 'I\'ll try to find a station nearby.';
         }
         this.state = 'WAIT_DESTINATION';

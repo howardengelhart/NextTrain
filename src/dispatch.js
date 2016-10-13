@@ -143,7 +143,7 @@ class WelcomeRequestHandler {
 }
 
 
-function textPreprocessor(wit,msg) {
+function textPreprocessor(wit,msg,job) {
     return wit.message(msg.message.text)
     .then(res => {
         log.info({ witResponse : res },'Handling wit response.');
@@ -152,11 +152,12 @@ function textPreprocessor(wit,msg) {
             payload[ent] = ld.get(res,`entities.${ent}[0].value`);
         }
 
-        return { payloadType : 'text', msg : msg, payload : payload };
+        ld.assign(job, { payloadType : 'text', msg : msg, payload : payload });
+        return job;
     });
 }
 
-function dataPreprocessor(msg) {
+function dataPreprocessor(msg, job) {
     return new Promise((resolve) => {
         let payload, type = 'unknown';
 
@@ -185,7 +186,8 @@ function dataPreprocessor(msg) {
         }
 
         log.debug('resolving prprocessor');
-        return resolve({ payloadType : type, msg : msg, payload : payload });
+        ld.assign(job, { payloadType : type, msg : msg, payload : payload });
+        return resolve(job);
     });
 }
 
@@ -193,6 +195,7 @@ module.exports = (app, messages, users ) => {
     let wit = new Wit(app.wit);
     let tokens  = {};
     let action = new fb.SenderAction();
+    let userProfile = new fb.UserProfile();
 
     app.facebook.pages.forEach((page) => {
         tokens[page.id] = page.token;
@@ -203,27 +206,47 @@ module.exports = (app, messages, users ) => {
 
     return Promise.all((messages || []).map( (msg) => {
         log.debug({ message : msg }, 'Dispatching message.' );
-        let preProcessor;
-
-        if (msg.message && msg.message.text && (!msg.message.quick_reply)) {
-            preProcessor = textPreprocessor.bind({}, wit);
-        } else {
-            preProcessor = dataPreprocessor;
+        let job = {
+            app : app,
+            token : tokens[msg.recipient.id],
+            user : users[msg.sender.id]
+        };
+        if (!job.user) {
+            job.user = new User({ appId : app.appId, userId : msg.sender.id });
         }
 
-        log.debug('calling preprocessor...');
-        return action.send(msg.sender.id,'typing_on',tokens[msg.recipient.id])
-        .then(() => preProcessor(msg))
-        .then((job) => {
-            job.app = app;
-            job.token = tokens[msg.recipient.id];
-            job.user = users[msg.sender.id];
+        return action.send(job.user.userId,'typing_on',job.token)
+        .then(() => {
+            if ((!ld.get(job,'user.profile')) || 
+                ((Date.now() - ld.get(job,'user.profile.profile_date',0)) > 900000) ) {
+                log.debug(`Lookup profile for user ${job.user.userId}`);
+                return userProfile.getProfile(job.user.userId,job.token)
+                .then((profile) => {
+                    log.debug({ profile : profile}, `Set profile for user ${job.user.userId}`);
+                    job.user.profile = profile;
+                    return job;
+                })
+                .catch(err => {
+                    log.warn({err : err.message}, 'USER PROFILE LOOKUP FAIL');
+                    return job;
+                });
+            } 
+            return job;
+        })
+        .then(() => {
+            let preProcessor;
 
-            let handler, handlerType;
-
-            if (!job.user) {
-                job.user = new User({ appId : app.appId, userId : msg.sender.id });
+            if (msg.message && msg.message.text && (!msg.message.quick_reply)) {
+                preProcessor = textPreprocessor.bind({}, wit, msg, job);
+            } else {
+                preProcessor = dataPreprocessor.bind({}, msg, job);
             }
+
+            log.debug('calling preprocessor...');
+            return preProcessor();
+        })
+        .then((job) => {
+            let handler, handlerType;
 
             log.info({ job : job }, 'Handle job.' );
 

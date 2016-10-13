@@ -42,6 +42,14 @@ class User {
         return userData.get(this).context = v;
     }
 
+    get profile() {
+        return userData.get(this).profile;
+    }
+
+    set profile(v) {
+        return userData.get(this).profile = ld.assign({}, v, {profile_date : Date.now()}) ;
+    }
+
     get data() {
         if (!userData.get(this).data){
             userData.get(this).data = {};
