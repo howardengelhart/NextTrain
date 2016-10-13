@@ -7,6 +7,7 @@ const OTPlanner = require('./OTPlanner');
 const moment = require('moment-timezone');
 const compressAndStorePlan = require('./otputil').compressAndStorePlan;
 const TODAY = moment().tz('America/New_York');
+const fuzzy = require('fuzzy-filter');
 
 class TripRequestHandler {
     constructor(job, type) {
@@ -178,7 +179,7 @@ class TripRequestHandler {
     //Optional alternative for formatting station choices
     
     requestStationSelectionWide (stations) {
-        this.log.debug('exec requestStationSelectionWide');
+        this.log.debug({ stops : stations}, 'exec requestStationSelectionWide');
         let templ = new fb.GenericTemplate();
         let action = stations.length > 1 ? 'Select' : 'Confirm';
         let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
@@ -274,12 +275,12 @@ class TripRequestHandler {
                 return this.send('No stations found, try again later.');
             }
 
-            let re = new RegExp(stationName,'gi');
-
-            let matches = results.filter( stop => {
-                return stop.name.match(re);
-            });
-
+            let matches = fuzzy(stationName, results.map((stop) => stop.name), { limit : 5 });
+            //let re = new RegExp(stationName,'gi');
+            //let matches = results.filter( stop => {
+            //    return stop.name.match(re);
+            //});
+       
             this.log.debug({ 
                 text: stationName,
                 results : results.length, 
@@ -293,7 +294,32 @@ class TripRequestHandler {
                 return this.send('Too many matching stations found, try again.');
             }
 
-            this.log.debug({ results : matches }, 'OTP found stops');
+            let previousStops = {};
+            for (let trip of ld.get(this,'user.data.tripHistory',[])) {
+                previousStops[ld.get(trip,'data.destinationStop.name','unknown')] = true;
+                previousStops[ld.get(trip,'data.originStop.name','unknown')] = true;
+            }
+
+            log.debug({previousStops : previousStops}, 'PREV STOPS');
+
+            let matchStops = {};
+            for (let match of matches) {
+                matchStops[match] = true;
+            }
+
+            matches = results.filter( stop => matchStops[stop.name]).sort((a,b) => {
+                if (previousStops[a.name]) {
+                    return -1;
+                } else
+                if (previousStops[b.name]) {
+                    return 1;
+                } else {
+                    return a > b ? 1 : -1;
+                }
+            });
+
+            this.log.debug({ results : matches, resultType: typeof(matches) }, 
+                'OTP found stops');
             return this.requestStationSelection(matches );
         })
         .catch((err) => {
