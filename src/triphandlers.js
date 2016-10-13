@@ -413,6 +413,7 @@ class TripRequestHandler {
     }
 
     finishRequest() {
+        this.job.done = true;
         this.state = 'DONE';
         let history = this.user.data.tripHistory || [];
         history.unshift(this.request);
@@ -503,7 +504,6 @@ class DepartingTripRequestHandler extends TripRequestHandler {
         return otp.findPlans(params)
         .then(plans  => compressAndStorePlan(this.job.app.appId, plans) )
         .then(compressedPlans => this.sendTrips(compressedPlans) )
-        .then(() => this.send('Can I help you with something else?'))
         .then(() => this.finishRequest() );
     }
 }
@@ -609,7 +609,6 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
         return otp.findPlans(params)
         .then(plans  => compressAndStorePlan(this.job.app.appId, plans) )
         .then(compressedPlans => this.sendTrips(compressedPlans) )
-        .then(() => this.send('Can I help you with something else?'))
         .then(() => this.finishRequest() );
     }
 }
