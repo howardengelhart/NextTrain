@@ -13,6 +13,12 @@ class TripRequestHandler {
         this.job    = job;
         this.type   = type;
         this.log    = log.child({ requestType : this.type, user : this.job.user.userId });
+
+        let currentHandlerType = ld.get(this,'job.user.data.currentRequest.type');
+        if (currentHandlerType !== type) {
+            this.user.data.currentRequest = {};
+        }
+
         this.log.trace('Initialized.');
     }
 
@@ -61,6 +67,40 @@ class TripRequestHandler {
     get user() {
         return ld.get(this,'job.user');
     }
+
+    abbrevStopName(stopName) {
+        const replaces = {
+            STREET : 'ST',
+            'LIGHT RAIL': 'LR',
+            LIGHT : 'LT',
+            LEVEL : 'LVL',
+            RAILROAD : 'RR',
+            RAIL : 'RL',
+            ROUTE : 'RT',
+            DRIVE : 'DR',
+            AVENUE : 'AV',
+            TERMINAL : 'TERM',
+            STATION : 'STN',
+            DEPARTURE : 'DEP',
+            TRANSIT: 'TRANS',
+            CENTER : 'CTR',
+            'FRANK R LAUTENBERG' : ''
+        };
+        
+        if (stopName.length <= 18) {
+            return stopName;
+        }
+
+        let newName = stopName;
+        for (let repl in replaces) {
+            newName = newName.replace(repl,replaces[repl]);
+            if (newName.length < 18) {
+                break;
+            }
+        }
+
+        return newName;
+    }
     
     requestStop(prompt) {
         let trip = ld.get(this,'user.data.tripHistory[0]');
@@ -86,26 +126,12 @@ class TripRequestHandler {
             [trip.data.destinationStop, trip.data.originStop].forEach( (oldStop) => {
                 if ((!oldStop.name.match(re)) && (oldStop.id !== newId)) {
                     text.quick_replies.push(new fb.TextQuickReply( { 
-                        title: oldStop.name.substr(0,18),
+                        title: this.abbrevStopName(oldStop.name),
                         payload: JSON.stringify({ type: 'stop', stop: oldStop })
                     }));
                 }
 
             });
-                
-            //if (!trip.data.destinationStop.name.match(re)) {
-            //    text.quick_replies.push(new fb.TextQuickReply( { 
-            //        title: trip.data.destinationStop.name.substr(0,18),
-            //        payload: JSON.stringify({ type: 'stop', stop: trip.data.destinationStop })
-            //    }));
-            //}
-
-            //if (!trip.data.originStop.name.match(re)) {
-            //    text.quick_replies.push(new fb.TextQuickReply( { 
-            //        title : trip.data.originStop.name.substr(0,18),
-            //        payload : JSON.stringify({ type : 'stop', stop : trip.data.originStop })
-            //    }));
-            //}
         }
         
         return this.send(text);
@@ -185,10 +211,11 @@ class TripRequestHandler {
 
         templ.buttons = stations.map( (station) => {
             let payload = { type : 'stop', stop : station };
-            let title = station.name;
+            let stopName = this.abbrevStopName(station.name);
+            let title = stopName;
             if (station.dist) {
                 let distance = Math.round((station.dist * 0.000621371) * 10) / 10;
-                title = `${station.name} ${distance} m`;
+                title = `${stopName} ${distance} m`;
             }
             return new fb.PostbackButton({ title : title, payload : JSON.stringify(payload) });
         });
