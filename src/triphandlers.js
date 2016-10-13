@@ -27,6 +27,10 @@ class TripRequestHandler {
         return this.message.send( this.job.user.userId, msg, this.job.token);
     }
 
+    get noob() {
+        return (ld.get(this,'user.data.tripHistory.length',0) <= 3);
+    }
+
     get message() {
         if (!this._message) {
             this._message = new fb.Message();
@@ -74,6 +78,7 @@ class TripRequestHandler {
     }
 
     abbrevStopName(stopName) {
+        this.log.debug(`abbrevStopName: ${stopName}`);
         const replaces = {
             STREET : 'ST',
             'LIGHT RAIL': 'LR',
@@ -110,58 +115,88 @@ class TripRequestHandler {
 
         return newName;
     }
-    
+
     requestStop(prompt) {
-        let trip = ld.get(this,'user.data.tripHistory[0]');
+        this.log.debug('exec requestStop');
         let text = new fb.Text(prompt);
         text.quick_replies.push(new fb.LocationQuickReply() );
-        if (trip) {
-            let re, newId;
-            
-            // If we are looking for an Origin, make sure the old trip does not
-            // match this trip's destination as we do not want to suggest a possible
-            // destination match for the origin.
-            // If we are looking for a Destination, then make sure we don't suggest
-            // something we've already used for the origin.
-            
-            if (this.state === 'WAIT_ORIGIN') {
-                re = new RegExp(ld.get(this,'request.data.destination',''),'gi');
-                newId = ld.get(this,'request.data.destinationStop.id','');
-            } else {
-                re = new RegExp(ld.get(this,'request.data.origin',''),'gi');
-                newId = ld.get(this,'request.data.originStop.id','');
-            }
+        
+        let checkName = (this.state === 'WAIT_ORIGIN') ?
+            ld.get(this,'request.data.destination') :
+            ld.get(this,'request.data.origin');
+        let checkId = (this.state === 'WAIT_ORIGIN') ?
+            ld.get(this,'request.data.destinationStop.id') :
+            ld.get(this,'request.data.originStop.id');
 
-            [trip.data.destinationStop, trip.data.originStop].forEach( (oldStop) => {
-                if ((!oldStop.name.match(re)) && (oldStop.id !== newId)) {
+        let stopped = {};
+        for (let trip of ld.get(this,'user.data.tripHistory',[])){
+            for (let stop of [ trip.data.destinationStop, trip.data.originStop ]) {
+                this.log.debug({ stop : stop }, 'EVAL HISTORICAL STOP');
+                if (( text.quick_replies.length < 10) && 
+                    (stopped[stop.name] === undefined) && 
+                    (checkId !== stop.id) && 
+                    ((!checkName) || (fuzzy(checkName,[stop.name], { limit : 1}).length === 0))
+                    ) {
+                    stopped[stop.name] = true;
+                    this.log.debug({ stop : stop }, 'ADD STOP BUTTON');
                     text.quick_replies.push(new fb.TextQuickReply( { 
-                        title: this.abbrevStopName(oldStop.name),
-                        payload: JSON.stringify({ type: 'stop', stop: oldStop })
+                        title: this.abbrevStopName(stop.name),
+                        payload: JSON.stringify({ type: 'stop', stop: stop })
                     }));
                 }
-
-            });
+            }
         }
-        
+
         return this.send(text);
     }
-
+    
+//    requestStop(prompt) {
+//        let trip = ld.get(this,'user.data.tripHistory[0]');
+//        let text = new fb.Text(prompt);
+//        text.quick_replies.push(new fb.LocationQuickReply() );
+//        log.debug({ thisTrip : this.request, oldTrip : trip}, 'REQUEST STOP QR CHECK');
+//        
+//        if (trip) {
+//            let re, newId;
+//            
+//            // If we are looking for an Origin, make sure the old trip does not
+//            // match this trip's destination as we do not want to suggest a possible
+//            // destination match for the origin.
+//            // If we are looking for a Destination, then make sure we don't suggest
+//            // something we've already used for the origin.
+//            
+//            if (this.state === 'WAIT_ORIGIN') {
+//                re = new RegExp(ld.get(this,'request.data.destination',''),'gi');
+//                newId = ld.get(this,'request.data.destinationStop.id','');
+//            } else {
+//                re = new RegExp(ld.get(this,'request.data.origin',''),'gi');
+//                newId = ld.get(this,'request.data.originStop.id','');
+//            }
+//
+//            [trip.data.destinationStop, trip.data.originStop].forEach( (oldStop) => {
+//                if ((!oldStop.name.match(re)) && (oldStop.id !== newId)) {
+//                    text.quick_replies.push(new fb.TextQuickReply( { 
+//                        title: this.abbrevStopName(oldStop.name),
+//                        payload: JSON.stringify({ type: 'stop', stop: oldStop })
+//                    }));
+//                }
+//
+//            });
+//        }
+//        
+//        return this.send(text);
+//    }
+    
     requestOrigin() {
         this.log.debug('exec requestOrigin');
-        let text = 'I need to know where this trip starts.  ' +
-            'Hit Send Location and I\'ll try to find a station nearby or just ' +
-            'type in the name.';
         this.state = 'WAIT_ORIGIN';
-        return this.requestStop(text);
+        return this.requestStop(this.getRequestOriginText());
     }
     
     requestDestination() {
         this.log.debug('exec requestDestination');
-        let text = 'I need to know where this trip ends.  ' +
-            'Type the name of the station, or hit Send Location and I\'ll ' +
-            'try to find one nearby.';
         this.state = 'WAIT_DESTINATION';
-        return this.requestStop(text);
+        return this.requestStop(this.getRequestDestinationText());
     }
     
     displayDate(dt) {
@@ -182,7 +217,7 @@ class TripRequestHandler {
         this.log.debug({ stops : stations}, 'exec requestStationSelectionWide');
         let templ = new fb.GenericTemplate();
         let action = stations.length > 1 ? 'Select' : 'Confirm';
-        let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
+//        let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
         
         for (let station of stations) {
             let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}`;
@@ -208,7 +243,7 @@ class TripRequestHandler {
 
             cfg.buttons = [
 //                new fb.UrlButton({ title : 'Map', url : mapUrl }),
-                new fb.PostbackButton({ title : `${action} ${stopType}`,
+                new fb.PostbackButton({ title : action,
                     payload : JSON.stringify(payload) })
             ];
 
@@ -225,8 +260,8 @@ class TripRequestHandler {
             return this.requestStationSelectionWide(stations);
         }
         let action = stations.length > 1 ? 'Select' : 'Confirm';
-        let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
-        let templ = new fb.ButtonTemplate(`${action} ${stopType}`);
+//        let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
+        let templ = new fb.ButtonTemplate(action);
 
         templ.buttons = stations.map( (station) => {
             let payload = { type : 'stop', stop : station };
@@ -328,40 +363,6 @@ class TripRequestHandler {
         });
     }
     
-    evalState() {
-        this.log.debug('exec evalState');
-        let rqs = this.request;
-        
-        if (!rqs.data.origin) {
-            // If they typed in a destination, lets make sure its valid before
-            // we ask them for an origin.
-            if ((rqs.data.destination) && (!rqs.data.destinationStop)){
-                this.state = 'WAIT_DESTINATION';
-                return this.getStationFromList(
-                    this.request.data.destination, 'Select Destination');
-            } 
-            return this.requestOrigin();
-        }
-        else
-        if (!rqs.data.originStop) {
-            this.state = 'WAIT_ORIGIN';
-            return this.getStationFromList(this.request.data.origin, 'Select Origin');
-        }
-        else
-        if (!rqs.data.destination) {
-            return this.requestDestination();
-        }
-        else
-        if (!rqs.data.destinationStop) {
-            this.state = 'WAIT_DESTINATION';
-            return this.getStationFromList(this.request.data.destination, 'Select Destination');
-        }
-        else {
-            this.state = 'READY';
-            return this.work();
-        }
-    }
-
     work() {
         let state = ld.get(this, 'job.user.data.currentRequest.state','NEW');
         let doWork = () => {
@@ -456,6 +457,60 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     constructor(job) {
         super(job,'schedule_departing');
     }
+
+    evalState() {
+        this.log.debug('exec evalState');
+        let rqs = this.request;
+        
+        if (!rqs.data.origin) {
+            // If they typed in a destination, lets make sure its valid before
+            // we ask them for an origin.
+            if ((rqs.data.destination) && (!rqs.data.destinationStop)){
+                this.state = 'WAIT_DESTINATION';
+                return this.getStationFromList(
+                    this.request.data.destination, 'Select Destination');
+            } 
+            return this.requestOrigin();
+        }
+        else
+        if (!rqs.data.originStop) {
+            this.state = 'WAIT_ORIGIN';
+            return this.getStationFromList(this.request.data.origin, 'Select Origin');
+        }
+        else
+        if (!rqs.data.destination) {
+            return this.requestDestination();
+        }
+        else
+        if (!rqs.data.destinationStop) {
+            this.state = 'WAIT_DESTINATION';
+            return this.getStationFromList(this.request.data.destination, 'Select Destination');
+        }
+        else {
+            this.state = 'READY';
+            return this.work();
+        }
+    }
+
+    
+    getRequestOriginText() {
+        let text = 'Departing where?';
+        if (this.noob) {
+            text += 'Type the name of the station, or hit Send Location and ' +
+                'I\'ll try to find a station nearby.';
+        }
+        return text;
+    }
+    
+    getRequestDestinationText() {
+        let text = 'What\'s the destination?';
+        if (this.noob) {
+            text += 'Type the name of the station, or hit Send Location and ' +
+                'I\'ll try to find a station nearby.';
+        }
+        this.state = 'WAIT_DESTINATION';
+        return text;
+    }
     
     sendTripsWide (plans ) {
         this.log.debug('exec sendTrips');
@@ -538,6 +593,60 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
     constructor(job) {
         super(job,'schedule_arriving');
     }
+    
+    getRequestOriginText() {
+        let text = 'Coming from which station?';
+        if (this.noob) {
+            text += 'Type the name of the station, or hit Send Location and ' +
+                'I\'ll try to find a station nearby.';
+        }
+        return text;
+    }
+    
+    getRequestDestinationText() {
+        let text = 'Arriving where?';
+        if (this.noob) {
+            text += 'Type the name of the station, or hit Send Location and ' +
+                'I\'ll try to find a station nearby.';
+        }
+        this.state = 'WAIT_DESTINATION';
+        return text;
+    }
+    
+    evalState() {
+        this.log.debug('exec evalState');
+        let rqs = this.request;
+        
+        if (!rqs.data.destination) {
+            return this.requestDestination();
+        }
+        else
+        if (!rqs.data.destinationStop) {
+            this.state = 'WAIT_DESTINATION';
+            return this.getStationFromList(this.request.data.destination, 'Select Destination');
+        }
+        else 
+        if (!rqs.data.origin) {
+            // If they typed in a destination, lets make sure its valid before
+            // we ask them for an origin.
+            if ((rqs.data.destination) && (!rqs.data.destinationStop)){
+                this.state = 'WAIT_DESTINATION';
+                return this.getStationFromList(
+                    this.request.data.destination, 'Select Destination');
+            } 
+            return this.requestOrigin();
+        }
+        else
+        if (!rqs.data.originStop) {
+            this.state = 'WAIT_ORIGIN';
+            return this.getStationFromList(this.request.data.origin, 'Select Origin');
+        }
+        else {
+            this.state = 'READY';
+            return this.work();
+        }
+    }
+
     
     sendTrips (plans ) {
         this.log.debug('exec sendTrips');
