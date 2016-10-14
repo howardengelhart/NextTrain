@@ -93,9 +93,10 @@ class MenuRequestHandler {
 
 class WelcomeRequestHandler {
     constructor(job) {
+        let userName = ld.get(job,'user.profile.first_name','Friend');
         this.job = job;
         this.speech = [
-            'Hi there! I am here to help you find a train...' ,
+            `Hi there ${userName}! I am here to help you find a train...` ,
             '...in New Jersey.',
             'You can send me questions like..' +
             '"When does the next train leave Hamilton for New York?", or simply ' +
