@@ -7,7 +7,7 @@ const OTPlanner = require('./OTPlanner');
 const moment = require('moment-timezone');
 const compressAndStorePlan = require('./otputil').compressAndStorePlan;
 const TODAY = moment().tz('America/New_York');
-const fuzzy = require('fuzzy-filter');
+const fuzzy = require('fuzzy');
 
 class TripRequestHandler {
     constructor(job, type) {
@@ -135,7 +135,7 @@ class TripRequestHandler {
                 if (( text.quick_replies.length < 10) && 
                     (stopped[stop.name] === undefined) && 
                     (checkId !== stop.id) && 
-                    ((!checkName) || (fuzzy(checkName,[stop.name], { limit : 1}).length === 0))
+                    ((!checkName) || (fuzzy.filter(checkName,[stop.name]).length === 0))
                     ) {
                     stopped[stop.name] = true;
                     this.log.debug({ stop : stop }, 'ADD STOP BUTTON');
@@ -310,7 +310,8 @@ class TripRequestHandler {
                 return this.send('No stations found, try again later.');
             }
 
-            let matches = fuzzy(stationName, results.map((stop) => stop.name), { limit : 5 });
+            let matches = fuzzy.filter(stationName,results,{ extract: (s=> s.name)})
+                .slice(0,5).map(m => m.original);
             //let re = new RegExp(stationName,'gi');
             //let matches = results.filter( stop => {
             //    return stop.name.match(re);
@@ -337,19 +338,14 @@ class TripRequestHandler {
 
             log.debug({previousStops : previousStops}, 'PREV STOPS');
 
-            let matchStops = {};
-            for (let match of matches) {
-                matchStops[match] = true;
-            }
-
-            matches = results.filter( stop => matchStops[stop.name]).sort((a,b) => {
+            matches = matches.sort((a,b) => {
                 if (previousStops[a.name]) {
                     return -1;
                 } else
                 if (previousStops[b.name]) {
                     return 1;
                 } else {
-                    return a > b ? 1 : -1;
+                    return 0;
                 }
             });
 
