@@ -6,6 +6,7 @@ const inspect = require('util').inspect;
 module.exports = (grunt)=>  {
 
     grunt.initConfig({
+        pkg : require('./package'),
         eslint : {
             target: ['index.js','Gruntfile.js','src/**/*.js',
                 'tests/**/*.js', 'db/**/*.js', 'scripts/**/*.js']
@@ -282,7 +283,9 @@ module.exports = (grunt)=>  {
             }
            
             grunt.log.writeflags(data,'updateFunctionCode Result');
+
             return done(true);
+
         });
     }
    
@@ -339,6 +342,70 @@ module.exports = (grunt)=>  {
                 'lambdaUpload'
             ]);
         }
+    });
+
+    grunt.registerTask('lambdaTag', function(funcname, tag, version) {
+        let opts     = this.options({
+            region       : grunt.option('region') || 'us-east-1'
+        });
+        let lambda = new Lambda( opts );
+        let pkg = grunt.config().pkg;
+        let done = this.async();
+
+        if (!tag) {
+            tag = `${pkg.name}-${pkg.version.replace(/\./g,'_')}`;
+            grunt.log.writelns(`No tag specified, use package version ${tag}.`);
+        }
+
+        let getFunction = () => {
+            return new Promise((resolve,reject) => {
+                let p = { FunctionName : funcname }; 
+                if (version) {
+                    p.Qualifier = version;
+                } else {
+                    grunt.log.writelns('No verision specified will use $LATEST.');
+                }
+
+                lambda.getFunction(p, (err, data) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    
+                    grunt.log.debug('data:',data.Configuration);
+                    resolve(data.Configuration);
+                });
+            });
+        };
+
+        let createAlias = (data) => {
+            return new Promise((resolve,reject) => {
+                let params = {
+                    FunctionName : data.FunctionName,
+                    FunctionVersion : data.Version,
+                    Name : tag,
+                    Description : `${data.FunctionName} version ${tag}`
+                };
+
+                lambda.createAlias(params, function(err, data) {
+                    if (err) {
+                        return reject(err);
+                    }
+                    
+                    return resolve(data);
+                });
+            });
+        };
+
+        getFunction()
+            .then(createAlias)
+            .then(res => {
+                grunt.log.writeflags(res,'updateAlias Result');
+                done(true);
+            })
+            .catch(err => {
+                grunt.log.errorlns(funcname + ' ' + err.message);
+                done(false);
+            });
     });
 
     grunt.registerMultiTask('createTables', function() {
