@@ -3,7 +3,7 @@
 const log = require('./log');
 const User = require('./User');
 const Wit = require('./Wit');
-const HandlerFactory = require('./triphandlers').HandlerFactory;
+const HandlerFactory = require('./handlers').HandlerFactory;
 
 const fb = require('thefacebook');
 const ld = require('lodash');
