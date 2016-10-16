@@ -74,10 +74,7 @@ class MenuRequestHandler extends RequestHandler{
         let templ = new fb.ButtonTemplate('Let me find you..', [
             this.menuItem('Departing trains', 'schedule_departing'),
             this.menuItem('Arriving trains', 'schedule_arriving'),
-            new fb.PostbackButton({
-                title : 'Help', 
-                payload : JSON.stringify({ type : 'welcome', index : 2 })
-            })
+            this.menuItem('Help', 'help')
         ]);
 
         return this.send(templ)
@@ -97,7 +94,7 @@ class MultiLineTextRequestHandler extends RequestHandler {
     
     work() {
         let index = ld.get(this,'job.payload.index',0);
-        let endIndex = ld.get(this,'job.payload.endIndex',this.speech.length);
+        let endIndex = ld.get(this,'job.payload.endIndex',this.lines.length);
         let line = this.lines[index++];
          
         if (!line) {
