@@ -11,12 +11,15 @@ const TODAY = timezone => moment().tz(timezone);
 
 class RequestHandler { 
     constructor(job, type) {
+        let user = { id : job.user.userId };
+        let profile = ld.get(job,'user.profile');
+        if (profile) {
+            user.name = `${profile.first_name} ${profile.last_name}`;
+        }
+        
         this.job    = job;
         this.type   = type;
-        this.log    = log.child({ 
-            requestType : this.type,
-            user : this.job.user.profile || this.job.user.userId 
-        });
+        this.log    = log.child({ requestType : this.type, user :  user });
 
         this.log.trace('Initialized.');
     }
@@ -252,7 +255,7 @@ class TripRequestHandler extends RequestHandler {
         let stopped = {};
         for (let trip of ld.get(this,'user.data.tripHistory',[])){
             for (let stop of [ trip.data.destinationStop, trip.data.originStop ]) {
-                this.log.debug({ stop : stop }, 'EVAL HISTORICAL STOP');
+                this.log.trace({ stop : stop }, 'EVAL HISTORICAL STOP');
                 if (( text.quick_replies.length < 10) && 
                     (stopped[stop.name] === undefined) && 
                     (checkId !== stop.id) && 
