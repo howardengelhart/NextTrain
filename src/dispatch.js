@@ -3,146 +3,12 @@
 const log = require('./log');
 const User = require('./User');
 const Wit = require('./Wit');
-const tripHandlers = require('./triphandlers') ;
-const DepartingTripRequestHandler = tripHandlers.DepartingTripRequestHandler;
-const ArrivingTripRequestHandler = tripHandlers.ArrivingTripRequestHandler;
+const HandlerFactory = require('./triphandlers').HandlerFactory;
+
 const fb = require('thefacebook');
 const ld = require('lodash');
 
 const wait = (timeout) => ( new Promise( (resolve) => setTimeout(resolve,timeout)) );
-
-//function handleAttachment(job) {
-//    let type = job.msg.message.attachments[0].type;
-//    let response = '';
-//    if (type === 'image') {
-//        response = 'What a lovely picture, thanks.';
-//    } else
-//    if (type === 'video') {
-//        response = 'Thanks, I\'ll watch this when I get home.'; 
-//    } else
-//    if (type === 'audio') {
-//        response = 'Sounds interesting.';
-//    } else {
-//        response = 'I\'ll send this to my attorney.';
-//    }
-//    
-//    return job.fbMessage.send(job.msg.sender.id,response,job.token)
-//    .then((result) => {
-//        job.result = result;
-//        return job;
-//    });
-//}
-
-class UnknownRequestHandler {
-    constructor(job) {
-        this.job = job;
-    }
-    
-    work() {
-        let message = new fb.Message();
-        let user = this.job.user;
-        let token = this.job.token;
-        return message.send(user.userId,'Sorry, didn\'t quite get that.',token)
-            .then(() => { this.job.done = true; return this.job; });
-    }
-}
-
-
-class HelpMenu {
-    constructor() {
-        let menuItem = (t,i) => (new fb.PostbackButton({ 
-            title : t, payload : JSON.stringify({ type : 'MAIN-MENU', item : i })
-        }));
-        this.templ = new fb.ButtonTemplate('Let me find you..', [
-            menuItem('Departing trains', 'schedule_departing'),
-            menuItem('Arriving trains', 'schedule_arriving'),
-            new fb.PostbackButton({
-                title : 'Help', 
-                payload : JSON.stringify({ type : 'welcome', index : 2 })
-            })
-        ]);
-        this.message = new fb.Message();
-    }
-
-    send(userId, token) {
-        return this.message.send(userId,this.templ,token); 
-    }
-}
-
-class MenuRequestHandler {
-    constructor(job) {
-        this.job = job;
-    }
-    
-    send(msg) {
-        return this.message.send( this.job.user.userId, msg, this.job.token);
-    }
-
-    get message() {
-        if (!this._message) {
-            this._message = new fb.Message();
-        }
-        return this._message;
-    }
-
-    work() {
-        return (new HelpMenu()).send(this.job.user.userId, this.job.token)
-            .then(() => { this.job.done = true; return this.job; });
-    }
-}
-
-class WelcomeRequestHandler {
-    constructor(job) {
-        let userName = ld.get(job,'user.profile.first_name','Friend');
-        this.job = job;
-        this.speech = [
-            `Hi there ${userName}! I am here to help you find a train...` ,
-            '...in New Jersey.',
-            'You can send me questions like..' +
-            '"When does the next train leave Hamilton for New York?", or simply ' +
-                '"When is the next train to New York?".',
-            'You can also ask about arriving trains.. "When does the next train from ' +
-                'Hoboken arrive?"',
-            'You can get to my Quick Start menu and help any time by typing "menu", or ' +
-            'clicking the menu button on the bottom left corner of Messenger.'
-        ];
-    }
-    
-    send(msg) {
-        return this.message.send( this.job.user.userId, msg, this.job.token);
-    }
-
-    get message() {
-        if (!this._message) {
-            this._message = new fb.Message();
-        }
-        return this._message;
-    }
-
-    work() {
-        let index = ld.get(this,'job.payload.index',0);
-        let line = this.speech[index++];
-         
-        if (!line) {
-            return Promise.resolve({});
-        }
-
-        let endIndex = ld.get(this,'job.payload.endIndex',this.speech.length);
-        let text = new fb.Text(line);
-        if (index < endIndex) {
-            text.quick_replies.push(new fb.TextQuickReply( { 
-                title : 'Continue',
-                payload : JSON.stringify({
-                    type : 'welcome', index : index, endIndex : endIndex 
-                })
-            }));
-        } else {
-            this.job.done = true;
-        }
-        return this.send(text);
-    }
-}
-
 
 function textPreprocessor(wit,msg,job) {
     return wit.message(msg.message.text)
@@ -247,69 +113,18 @@ module.exports = (app, messages, users ) => {
             return preProcessor();
         })
         .then((job) => {
-            let handler, handlerType;
-
-            log.info({ job : job }, 'Handle job.' );
-
-            if (ld.get(job,'payload.type') === 'MAIN-MENU') {
-                handlerType = job.payload.item;
-                job.payload = {};
-            } else
-            if ((job.payloadType === 'text') && 
-                    (ld.get(job,'payload.intent') === 'display_menu')) {
-                handlerType = 'display_menu';
-                job.payload = {};
-            } else {
-                handlerType = ld.get(job,'user.data.currentRequest.type');
-            }
-            
-            if (!handlerType) {
-                if (job.payloadType === 'text') {
-                    handlerType = ld.get(job,'payload.intent');
-
-                    if (!handlerType) {
-                        if (job.payload.destination) {
-                            job.payload.intent = handlerType = 'schedule_departing';
-                        }
-                        else
-                        if (job.payload.origin) {
-                            job.payload.intent = handlerType = 'schedule_arriving';
-                        }
-                    }
-                } else {
-                    handlerType = ld.get(job,'payload.type');
-                }
-            }
-
-            if (handlerType === 'display_menu') {
-                log.info('Create MenuRequestHandler..');
-                handler = new MenuRequestHandler(job);
-            } else
-            if (handlerType === 'schedule_departing') {
-                log.info('Create DepartingTripRequestHandler..');
-                handler = new DepartingTripRequestHandler(job);
-            } else
-            if (handlerType === 'schedule_arriving') {
-                log.info('Create ArrivingTripRequestHandler..');
-                handler = new ArrivingTripRequestHandler(job);
-            } else
-            if (handlerType === 'welcome') {
-                log.info('Create WelcomeRequestHandler..');
-                handler = new WelcomeRequestHandler(job);
-            } else {
-                log.info('Create UnknownRequestHandler..');
-                handler = new UnknownRequestHandler(job);
-            }
-
-            log.debug('Call handler.work()');
-            return handler.work()
+            let handler = HandlerFactory.CreateHandler(job);
+            log.debug('Call handler.handle()');
+            return handler.handle()
                 .then(() => {
-                    if (job.done && (handler.constructor.name !== 'MenuRequestHandler')) {
+                    if (job.done && (handler.type !== HandlerFactory.MenuRequestHandlerType)) {
                         log.info('currentRequest is DONE, reset user for next request.');
                         delete job.user.data.currentRequest;
                         return action.send(job.user.userId,'typing_on',job.token)
                             .then(() => wait(1500))
-                            .then(() => ((new MenuRequestHandler(job)).work()) )
+                            .then(() => ((HandlerFactory.CreateHandler(
+                                job,HandlerFactory.MenuRequestHandlerType
+                                )).work()) )
                             .then(() => job);
                     }
                     return job;

@@ -10,9 +10,14 @@ class OTPlanner {
 
     constructor(opts) {
         _data.set(this, {
-            hostname : ld.get(opts,'hostname','localhost:8080')
+            hostname : ld.get(opts,'hostname','localhost:8080'),
+            routerId : ld.get(opts,'routerId','default')
         });
     }
+
+    get hostname() { return _data.get(this).hostname; }
+    
+    get routerId() { return _data.get(this).routerId; }
 
     apiUrl(endpoint,qs) {
         let _ = _data.get(this);
@@ -40,16 +45,15 @@ class OTPlanner {
         });
     }
     
-    findStops(params) {
-        return this.sendRequest('otp/routers/default/index/stops', params);
+    findStops(params, routerId) {
+        routerId = routerId || ld.get(_data.get(this),'routerId');
+        return this.sendRequest(`otp/routers/${routerId}/index/stops`, params);
     }
 
-    findPlans(params) {
-        return this.sendRequest('otp/routers/default/plan', params);
+    findPlans(params, routerId) {
+        routerId = routerId || ld.get(_data.get(this),'routerId');
+        return this.sendRequest(`otp/routers/${routerId}/plan`, params);
     }
-
-
-
 }
 
 module.exports = OTPlanner;
