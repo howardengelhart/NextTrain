@@ -53,6 +53,14 @@ module.exports = (grunt)=>  {
             'marcoTest' : {
                 appId : 'tb-marco-1',
                 pageId : '1757069501222687'
+            },
+            'nextNJT' : {
+                appId : 'next-sys',
+                pageId : '303932029994147'
+            },
+            'nextBART' : {
+                appId : 'next-sys',
+                pageId : '1419301661433153'
             }
         },
 
@@ -545,7 +553,7 @@ module.exports = (grunt)=>  {
             }
             grunt.log.writelns('set greeting text');
             return setting.apply(new fb.GreetingText(data.greetingText), data.token)
-                .then(() => data);
+                .then((resp) => { grunt.log.debug('setGreeting:',resp); return data; });
         };
 
         let setStart = (data) => {
@@ -557,7 +565,7 @@ module.exports = (grunt)=>  {
             grunt.log.writelns('set get started button');
             return setting.apply(
                 new fb.GetStartedButton({ payload : data.getStarted }), data.token)
-                    .then(() => data);
+                    .then((resp) => { grunt.log.debug('getStarted:',resp); return data; });
         };
 
         let setMenu = (data) => {
@@ -568,7 +576,7 @@ module.exports = (grunt)=>  {
             grunt.log.writelns('set persistent menu');
             return setting.apply(
                 new fb.PersistentMenu( data.persistentMenu) , data.token)
-                    .then(() => data);
+                    .then((resp) => { grunt.log.debug('setPersistent:',resp); return data; });
         };
 
         let getAppPage = (cfg) => {
@@ -576,7 +584,12 @@ module.exports = (grunt)=>  {
             grunt.log.writelns(`Lookup app: ${cfg.appId}, page: ${cfg.pageId}`);
             return ds.getApp(cfg.appId)
             .then((app) => {
-                return app.facebook.pages.filter((page) => (page.id === cfg.pageId))[0];
+                let page =  app.facebook.pages.filter((page) => (page.id === cfg.pageId))[0];
+                page.getStarted = page.getStarted || app.facebook.getStarted;
+                page.greetingText = page.greetingText || app.facebook.greetingText;
+                page.persistentMenu = page.persistentMenu || app.facebook.persistentMenu;
+                grunt.log.debug('Page config:',page);
+                return page;
             });
         };
 

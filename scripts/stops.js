@@ -1,7 +1,7 @@
 'use strict';
 /* eslint-disable no-console */
 const ld = require('lodash');
-const googleKey = 'KEY-GOES-HERE';
+const googleKey = 'AIzaSyCF5dpPG2MutETv1x4NLEH4CalSoudUUsg';
 const request = require('request');
 const S3    = require('aws-sdk').S3;
 
@@ -29,8 +29,8 @@ let xferMap = (stop) => {
         .on('response', (response) => {
 
             let s3params = {
-                Bucket : 'tb-marco-1',
-                Key : `img/njtransit/rail/${stop.code}.png`,
+                Bucket : 'next-sys',
+                Key : `img/njt/${stop.id}.png`,
                 ContentLength: response.headers['content-length'],
                 ContentType: response.headers['content-type'],
                 Body :  response,
@@ -43,7 +43,7 @@ let xferMap = (stop) => {
                     return reject(err);
                 } 
                 ld.assign(stop,data);
-                console.log(`Processed: ${stop.name}, ${stop.code}`);
+                console.log(`Processed: ${stop.name}, ${stop.id}`);
                 return resolve(stop);
             });
         });  

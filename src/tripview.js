@@ -4,7 +4,6 @@ const log       = require('./log');
 const S3        = require('aws-sdk').S3;
 const moment = require('moment-timezone');
 const ld = require('lodash');
-const today = moment().tz('America/New_York');
 
 function getTrip(params) {
     return new Promise( (resolve, reject) => {
@@ -21,30 +20,33 @@ function getTrip(params) {
     });
 }
 
-function displayDate(dt) {
-    let m = moment(dt).tz('America/New_York');
+function displayDate(dt, timezone) {
+    timezone = timezone || 'America/New_York';
+    let today = moment().tz(timezone);
+    let m = moment(dt).tz(timezone);
     let format = 'ddd, h:mmA';
 
     if (m.isSame(today,'day')) {
         format = 'h:mmA';
     }
 
-    return moment(dt).tz('America/New_York').format(format);
+    return moment(dt).tz(timezone).format(format);
 }
 
 exports.handler = (event, context ) => {
     log.level(ld.get(event,'stage-variables.loglevel','info'));
     log.debug(event);
     let itineraryId = event.params.querystring.i;
+    let routerId = event.params.querystring.r;
     let appId  = ld.get(event,'params.path.app');
-    log.info(`appId=${appId}, itineraryId=${itineraryId}`);
+    log.info(`appId=${appId}, itineraryId=${itineraryId}, routerId=${routerId}`);
 
-    getTrip({ Bucket : appId, Key : `itineraries/${itineraryId}.json` })
+    getTrip({ Bucket : appId, Key : `itineraries/${routerId}/${itineraryId}.json` })
     .then(trip => {
         let r= [];
         let tripTime = moment(trip.endTime).diff(moment(trip.startTime), 'minutes');
-        let deptTime = displayDate(trip.startTime);
-        let arrTime = displayDate(trip.endTime);
+        let deptTime = displayDate(trip.startTime, trip.timezone);
+        let arrTime = displayDate(trip.endTime, trip.timezone);
         r.push('<div>');
         r.push(`<h2> ${trip.from} to ${trip.to} </h2>`);
         r.push(`Departs at ${deptTime}<br/>`);
@@ -53,8 +55,8 @@ exports.handler = (event, context ) => {
         r.push(`Transfers: ${trip.transfers} <br/>`);
        
         for (let leg of trip.legs) {
-            let deptTime = displayDate(leg.from.departure);
-            let arrTime = displayDate(leg.to.arrival);
+            let deptTime = displayDate(leg.from.departure, trip.timezone);
+            let arrTime = displayDate(leg.to.arrival, trip.timezone);
             r.push('<div>');
             r.push('<p>');
             r.push(`<b><u> ${leg.route} </u></b><br/>`);

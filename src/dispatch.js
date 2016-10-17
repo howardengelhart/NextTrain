@@ -60,34 +60,46 @@ function dataPreprocessor(msg, job) {
 
 module.exports = (app, messages, users ) => {
     let wit = new Wit(app.wit);
-    let tokens  = {};
+    let pages  = {};
     let action = new fb.SenderAction();
     let userProfile = new fb.UserProfile();
 
     app.facebook.pages.forEach((page) => {
-        tokens[page.id] = page.token;
+        let appPage = {
+            appId : app.appId,
+            appRootUrl : app.appRootUrl,
+            stageVars : app.stageVars,
+            token : page.token,
+            pageId : page.id,
+            pageName : page.name
+        };
+        appPage.otp = ld.assign({},app.otp,page.otp);
+        appPage.wit = ld.assign({},app.wit,page.wit);
+        appPage.timezone = page.timezone || app.timezone;
+        appPage.welcome = page.welcome || app.welcome;
+
+        pages[page.id] = appPage;
     });
 
-    log.trace({'tokens' : tokens });
+    log.trace({'pages' : pages });
     log.trace({'users' : users });
 
     return Promise.all((messages || []).map( (msg) => {
         log.debug({ message : msg }, 'Dispatching message.' );
         let job = {
-            app : app,
-            token : tokens[msg.recipient.id],
+            app : pages[msg.recipient.id],
             user : users[msg.sender.id]
         };
         if (!job.user) {
             job.user = new User({ appId : app.appId, userId : msg.sender.id });
         }
 
-        return action.send(job.user.userId,'typing_on',job.token)
+        return action.send(job.user.userId,'typing_on',job.app.token)
         .then(() => {
             if ((!ld.get(job,'user.profile')) || 
                 ((Date.now() - ld.get(job,'user.profile.profile_date',0)) > 900000) ) {
                 log.debug(`Lookup profile for user ${job.user.userId}`);
-                return userProfile.getProfile(job.user.userId,job.token)
+                return userProfile.getProfile(job.user.userId,job.app.token)
                 .then((profile) => {
                     log.debug({ profile : profile}, `Set profile for user ${job.user.userId}`);
                     job.user.profile = profile;
@@ -120,7 +132,7 @@ module.exports = (app, messages, users ) => {
                     if (job.done && (handler.type !== HandlerFactory.MenuRequestHandlerType)) {
                         log.info('currentRequest is DONE, reset user for next request.');
                         delete job.user.data.currentRequest;
-                        return action.send(job.user.userId,'typing_on',job.token)
+                        return action.send(job.user.userId,'typing_on',job.app.token)
                             .then(() => wait(1500))
                             .then(() => ((HandlerFactory.CreateHandler(
                                 job,HandlerFactory.MenuRequestHandlerType

@@ -27,13 +27,13 @@ class RequestHandler {
     get payload() { return this.job.payload; }
     get user() { return this.job.user; }
     get app() { return this.job.app; }
-    get token() { return this.job.token; }
+    get token() { return this.job.app.token; }
     
     send(msg) {
         if (!this._message) {
             this._message = new fb.Message();
         }
-        return this._message.send( this.job.user.userId, msg, this.job.token);
+        return this._message.send( this.job.user.userId, msg, this.job.app.token);
     }
 
     handle() {
@@ -123,10 +123,9 @@ class WelcomeRequestHandler extends MultiLineTextRequestHandler {
     
     constructor(job) {
         let userName = ld.get(job,'user.profile.first_name','Friend');
-        let speech = [
-            `Hi there ${userName}! I am here to help you find a train...` ,
-            '...in New Jersey.'
-        ];
+        let speech = job.app.welcome.map((line) => {
+            return line.replace('{userName}',userName);
+        });
         super(job,WelcomeRequestHandler.handlerType,speech);
     }
 }
@@ -342,8 +341,9 @@ class TripRequestHandler extends RequestHandler {
         
         for (let station of stations) {
             let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}`;
+            let routerId = this.app.otp.routerId;
             let mapUrl = `https://www.google.com/maps?q=${station.lat}%2C${station.lon}`;
-            let imgUrl = `${s3Bucket}/img/njtransit/rail/${station.code}.png`;
+            let imgUrl = `${s3Bucket}/img/${routerId}/${encodeURIComponent(station.id)}.png`;
             let stopName = this.abbrevStopName(station.name);
 
             let payload = {
@@ -441,14 +441,25 @@ class TripRequestHandler extends RequestHandler {
             this.log.debug({ 
                 text: stationName,
                 results : results.length, 
-                matches : matches.length }, 'MATCH CHECK');
+                matches : matches.length }, 'MATCH CHECK 1');
 
             if (!matches || !matches.length) {
-                return this.send('No matching stations found, try again.');
+                let takeTwo = stationName.replace(/\W+/g,' ').split(' ')[0];
+                matches = fuzzy.filter(takeTwo,results,{ extract: (s=> s.name)})
+                    .slice(0,5).map(m => m.original);
+                this.log.debug({ 
+                    text: takeTwo,
+                    results : results.length, 
+                    matches : matches.length }, 'MATCH CHECK 2');
+            }
+
+            if (!matches || !matches.length) {
+                return this.send(`No matching stations found for "${stationName}", try again.`);
             }
 
             if (matches.length > 5) {
-                return this.send('Too many matching stations found, try again.');
+                return this.send(
+                    `Too many matching stations found for "${stationName}", try again.`);
             }
 
             let previousStops = {};
@@ -555,6 +566,19 @@ class TripRequestHandler extends RequestHandler {
         
         return Promise.resolve(this.job);
     }
+    
+    onReady() {
+        let otp = this.otp;
+        let params = this.getTripParams();
+        let bucket = this.app.appId;
+        let key = `itineraries/${this.app.otp.routerId}`;
+
+        this.log.debug({ otpParams : params }, 'calling findPlans');
+        return otp.findPlans(params)
+        .then(plans  => compressAndStorePlan(bucket, key, this.timezone, plans) )
+        .then(compressedPlans => this.sendTrips(compressedPlans) )
+        .then(() => this.finishRequest() );
+    }
 
     finishRequest() {
         this.job.done = true;
@@ -637,7 +661,8 @@ class DepartingTripRequestHandler extends TripRequestHandler {
 
         for (let plan of plans) {
             let i = plan.itinerary;
-            let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
+            let routerId = this.app.otp.routerId;
+            let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
             this.log.debug(`trip link: ${link}`);
             let cfg = {
                 title : `Departs ${this.abbrevStopName(i.from)} - ` +
@@ -688,9 +713,8 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     }
     
 
-    onReady() {
-        let otp = this.otp;
-        let params = {
+    getTripParams() {
+        return {
             fromPlace : this.request.data.originStop.id,
             toPlace: this.request.data.destinationStop.id,
             mode : 'TRANSIT',
@@ -699,12 +723,6 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             numItineraries : this.numItineraries,
             showIntermediateStops: true
         };
-
-        this.log.debug({ otpParams : params }, 'calling findPlans');
-        return otp.findPlans(params)
-        .then(plans  => compressAndStorePlan(this.job.app.appId, plans) )
-        .then(compressedPlans => this.sendTrips(compressedPlans) )
-        .then(() => this.finishRequest() );
     }
 }
 
@@ -845,8 +863,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
     }
 
 
-    onReady() {
-        let otp = this.otp;
+    getTripParams() {
         let range = moment().tz(this.timezone).add(1,'hours');
         let params = {
             fromPlace : this.request.data.originStop.id,
@@ -860,12 +877,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             date : range.format('MM-DD-YYYY'),
             time : range.format('HH:mm:00')
         };
-
-        this.log.debug({ otpParams : params }, 'calling findPlans');
-        return otp.findPlans(params)
-        .then(plans  => compressAndStorePlan(this.job.app.appId, plans) )
-        .then(compressedPlans => this.sendTrips(compressedPlans) )
-        .then(() => this.finishRequest() );
+        return params;
     }
 }
 

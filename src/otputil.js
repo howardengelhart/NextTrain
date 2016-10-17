@@ -35,9 +35,10 @@ function putObject (s3, params) {
     });  
 }
 
-function compressPlanItinerary(plan, i) {
+function compressPlanItinerary(plan, i, timezone) {
     return {
         date : (plan.date - (plan.date % 3600000)), // round to the hour
+        timezone : timezone,
         from : plan.from.name,
         to : plan.to.name,
         duration : i.duration,
@@ -82,11 +83,11 @@ function compressPlanItinerary(plan, i) {
     };
 }
 
-exports.compressAndStorePlan = (bucket,planner) => {
+exports.compressAndStorePlan = (bucket, key, timezone, planner) => {
     const crypto = require('crypto');
     let s3 = new S3();
     return Promise.all(planner.plan.itineraries.map(itinerary => {
-        let i = compressPlanItinerary(planner.plan,itinerary);
+        let i = compressPlanItinerary(planner.plan,itinerary, timezone);
         let hash = crypto.createHash('md5');
         let result = {
             itinerary : i
@@ -107,7 +108,7 @@ exports.compressAndStorePlan = (bucket,planner) => {
                                                                 
             return putObject(s3, { 
                 Bucket : bucket, 
-                Key : `itineraries/${result.itineraryId}.json`, 
+                Key : `${key}/${result.itineraryId}.json`, 
                 Body : JSON.stringify(i), 
                 ContentType : 'application/json' ,
                 CacheControl: 'max-age=900'
