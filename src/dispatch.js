@@ -142,7 +142,8 @@ module.exports = (app, messages, users ) => {
                     }
                     return job;
                 });
-        });
+        })
+        .then(job => action.send(job.user.userId,'typing_off',job.app.token).then(() => job) );
     }))
     .then( (jobs) => {
         return jobs.map(job => job.user);

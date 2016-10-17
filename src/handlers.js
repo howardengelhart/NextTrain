@@ -642,7 +642,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
 
     
     getRequestOriginText() {
-        let text = 'Departing from which Station?';
+        let text = 'Departing from which station?';
         if (this.noob) {
             text += ' Type the name of the station, or hit Send Location and ' +
                 'I\'ll try to find a station nearby.';
@@ -651,7 +651,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     }
     
     getRequestDestinationText() {
-        let text = 'What Station is your destination?';
+        let text = 'What station is your destination?';
         if (this.noob) {
             text += ' Type the name of the station, or hit Send Location and ' +
                 'I\'ll try to find a station nearby.';
@@ -701,7 +701,8 @@ class DepartingTripRequestHandler extends TripRequestHandler {
 
         for (let plan of plans) {
             let i = plan.itinerary;
-            let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
+            let routerId = this.app.otp.routerId;
+            let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
             let startTime = this.displayDate(i.startTime);
             let tripTime = moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes';
             let cfg = { title : `${startTime} - ${tripTime}`, url : link };
@@ -748,7 +749,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
     }
     
     getRequestDestinationText() {
-        let text = 'Arriving where?';
+        let text = 'Arriving at which station?';
         if (this.noob) {
             text += ' Type the name of the station, or hit Send Location and ' +
                 'I\'ll try to find a station nearby.';
@@ -762,6 +763,13 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
         let rqs = this.request;
         
         if (!rqs.data.destination) {
+            // If they typed in an origin, lets make sure its valid before
+            // we ask them for an destination.
+            if ((rqs.data.origin) && (!rqs.data.originStop)){
+                this.state = 'WAIT_ORIGIN';
+                return this.getStationFromList(
+                    this.request.data.origin, 'Select Origin');
+            } 
             return this.requestDestination();
         }
         else
@@ -812,7 +820,8 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
                 continue;
             }
             
-            let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
+            let routerId = this.app.otp.routerId;
+            let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
             let arrivesIn = moment(i.endTime).tz(this.timezone).fromNow(true);
             
             let cfg = { title : `${arrivesIn} - ${endTime}`, url : link };
@@ -845,7 +854,8 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             }
 
             //let arrivesIn = moment(i.endTime).tz(this.timezone).fromNow(true);
-            let link = `${this.job.app.appRootUrl}/tripview?i=${plan.itineraryId}`;
+            let routerId = this.app.otp.routerId;
+            let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
             let cfg = {
                 title : `Arrives ${this.abbrevStopName(i.to)} - ${endTime}`
 //                title : `Scheduled to arrive in ${arrivesIn} (${this.displayDate(i.endTime)})`
