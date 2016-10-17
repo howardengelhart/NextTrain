@@ -99,10 +99,14 @@ exports.handler = (event, context ) => {
     let method = ld.get(event,'context.http-method');
     let stage = ld.get(event,'context.stage');
     let appId  = ld.get(event,'params.path.app');
+    let host = ld.get(event,'params.header.Host');
+    let isAwsHost = host.match(/amazonaws.com/) ? true : false;
+    let pathParts = isAwsHost ? [ stage, appId ] : [ 'messenger', stage, appId ];
+
     let appRootUrl = require('url').format({
         protocol : ld.get(event,'params.header.CloudFront-Forwarded-Proto'),
         host : ld.get(event,'params.header.Host'),
-        pathname : [ stage, appId].join('/')
+        pathname : pathParts.join('/')
     });
 
     let handler;
