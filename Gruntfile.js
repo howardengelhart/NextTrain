@@ -50,17 +50,21 @@ module.exports = (grunt)=>  {
         },
 
         configureBot : {
-            'marcoTest' : {
-                appId : 'tb-marco-1',
-                pageId : '1757069501222687'
+            'testNJT' : {
+                appId : 'next-sys-test',
+                pageId : '303932029994147'
+            },
+            'testBART' : {
+                appId : 'next-sys-test',
+                pageId : '1419301661433153'
             },
             'nextNJT' : {
                 appId : 'next-sys',
-                pageId : '303932029994147'
+                pageId : '554561298060861'
             },
             'nextBART' : {
                 appId : 'next-sys',
-                pageId : '1419301661433153'
+                pageId : '205643263198402'
             }
         },
 
@@ -307,7 +311,7 @@ module.exports = (grunt)=>  {
                     return resolve({lookupAlias : data});
                 });
             });
-        }
+        };
 
 
         let updateCode = (results) => {
@@ -407,7 +411,7 @@ module.exports = (grunt)=>  {
 
                 lambda.getAlias(params, (err, data) => {
                     if (err) {
-                        grunt.log.debug(`${method} err:`,err);
+                        grunt.log.debug('err:',err);
                         return reject(err);
                     }
 
@@ -415,7 +419,7 @@ module.exports = (grunt)=>  {
                     return resolve({versionAlias : data});
                 });
             });
-        }
+        };
 
         let lookupTargetAlias = (results) => {
             return new Promise( (resolve, reject) => {
@@ -438,7 +442,7 @@ module.exports = (grunt)=>  {
                     return resolve(results);
                 });
             });
-        }
+        };
 
         let setTargetAlias = (results) => {
             return new Promise( (resolve, reject) => {

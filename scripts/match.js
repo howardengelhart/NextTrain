@@ -1,4 +1,5 @@
 'use strict';
+/* eslint-disable no-console */
 
 const OTPlanner = require('../src/OTPlanner');
 const fuzzy = require('fuzzy');

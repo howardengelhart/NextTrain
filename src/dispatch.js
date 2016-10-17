@@ -77,6 +77,7 @@ module.exports = (app, messages, users ) => {
         appPage.wit = ld.assign({},app.wit,page.wit);
         appPage.timezone = page.timezone || app.timezone;
         appPage.welcome = page.welcome || app.welcome;
+        appPage.help = page.help || app.help;
 
         pages[page.id] = appPage;
     });

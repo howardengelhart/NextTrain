@@ -134,15 +134,20 @@ class HelpRequestHandler extends MultiLineTextRequestHandler {
     static get handlerType() { return 'help'; }
 
     constructor(job) {
+        let city1 = ld.get(job,'app.help.city1');
+        let city2 = ld.get(job,'app.help.city2');
+        let city3 = ld.get(job,'app.help.city3');
+
         let speech = [
             'You can send me questions like..' +
-            '"When does the next train leave Hamilton for New York?", or simply ' +
-                '"When is the next train to New York?".',
+            `"When does the next train leave ${city1} for ${city2}?", or simply ` +
+                `"When is the next train to ${city2}?".`,
             'You can also ask about arriving trains.. "When does the next train from ' +
-                'Hoboken arrive?"',
+                `${city3} arrive?"`,
             'You can get to my Quick Start menu and help any time by typing "menu", or ' +
             'clicking the menu button on the bottom left corner of Messenger.'
         ];
+
         super(job,HelpRequestHandler.handlerType,speech);
     }
 }
@@ -637,7 +642,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
 
     
     getRequestOriginText() {
-        let text = 'Departing where?';
+        let text = 'Departing from which Station?';
         if (this.noob) {
             text += ' Type the name of the station, or hit Send Location and ' +
                 'I\'ll try to find a station nearby.';
@@ -646,7 +651,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     }
     
     getRequestDestinationText() {
-        let text = 'What\'s the destination?';
+        let text = 'What Station is your destination?';
         if (this.noob) {
             text += ' Type the name of the station, or hit Send Location and ' +
                 'I\'ll try to find a station nearby.';
