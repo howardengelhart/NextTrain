@@ -266,37 +266,225 @@ module.exports = (grunt)=>  {
 
     function lambdaUpload(opts){
         let done = this.async();
-
+        let publish = grunt.option('publish');
+        let pkg = grunt.config().pkg;
         let zipPath = path.join(opts.buildHome,opts.functionName +
-            (grunt.option('publish') ? '-' + grunt.config().pkg.version : '') + '.zip');
+            (publish ? `-${pkg.version}` : '') + '.zip');
         
         let lambda = new Lambda( { region : opts.region } );
-
-        let params = {
-            FunctionName: opts.functionName,
-            Publish: opts.publish,
-            ZipFile : grunt.file.read(zipPath, { encoding : null })
-        };
-
+        let tag = `${pkg.name}-${pkg.version.replace(/\./g,'_')}`;
         let ticker = setInterval(()=> grunt.log.write('.'), 1000);
 
         grunt.log.writelns('Deploy: ',zipPath);
+        
+        let lookupAlias = () => {
+            return new Promise( (resolve, reject) => {
+                if (!publish) {
+                    return resolve({});
+                }
 
-        lambda.updateFunctionCode(params, function(err, data) {
+                let params = {
+                    FunctionName : opts.functionName,
+                    Name : tag
+                };
+
+                lambda.getAlias(params, (err, data) => {
+                    if (err) {
+                        if (err.statusCode === 404) {
+                            data = err;
+                        } else {    
+                            return reject(err);
+                        }
+                    } else {
+                        if (!grunt.option('update')) {
+                            return reject(new Error(
+                                `Alias ${tag} already exists, delete or use --update.`
+                            ));
+                        }
+                    }
+
+                    grunt.log.debug('getAlias data:',data);
+                    return resolve({lookupAlias : data});
+                });
+            });
+        }
+
+
+        let updateCode = (results) => {
+            return new Promise( (resolve, reject) => {
+                let params = {
+                    FunctionName: opts.functionName,
+                    Publish: opts.publish,
+                    ZipFile : grunt.file.read(zipPath, { encoding : null })
+                };
+
+                lambda.updateFunctionCode(params, function(err, data) {
+                    if (err) {
+                        grunt.log.debug('updateCode err:',err);
+                        return reject(err);
+                    }
+                  
+                    grunt.log.debug('updateCode data:',data);
+                    results.updateCode = data;
+                    return resolve(results);
+                });
+            });
+        };
+
+        let setAlias = (results) => {
+            return new Promise( (resolve, reject) => {
+                if (!publish) {
+                    return resolve(results);
+                }
+
+                let params = {
+                    FunctionName : results.updateCode.FunctionName,
+                    FunctionVersion : results.updateCode.Version,
+                    Name : tag,
+                    Description : `${results.updateCode.FunctionName} version ${tag}`
+                };
+
+                let method = 'createAlias';
+                if (results.lookupAlias.FunctionVersion) {
+                    method = 'updateAlias';
+                }
+
+                lambda[method](params, function(err, data) {
+                    if (err) {
+                        grunt.log.debug(`${method} err:`,err);
+                        return reject(err);
+                    }
+                   
+                    grunt.log.debug(`${method} data:`,data);
+                    results.setAlias = data;
+                    return resolve(results);
+                });
+            });
+        };
+
+        lookupAlias()
+        .then(updateCode)
+        .then(setAlias)
+        .then(results => {
             grunt.log.writelns('.');
             clearInterval(ticker);
-            if (err) {
-                grunt.log.errorlns(opts.functionName + ' ' + err.message);
-                return done(false);
+            grunt.log.writeflags(results.updateCode, 'updateFunctionCode Result');
+            if (results.setAlias) {
+                grunt.log.writeflags(results.setAlias, 'setAlias Result');
             }
-           
-            grunt.log.writeflags(data,'updateFunctionCode Result');
-
-            return done(true);
-
+            done(true);
+        })
+        .catch(err => {
+            grunt.log.writelns('.');
+            clearInterval(ticker);
+            grunt.log.errorlns('lambdaUpload failed:', err);
+            done(false);
         });
     }
-   
+
+    function lambdaRelease(opts) {
+        let done = this.async();
+        let target = grunt.option('target');
+        
+        if (!target) {
+            grunt.log.errorlns('Requires a --target parameter.');
+            return done(false);
+        }
+
+        let pkg = grunt.config().pkg;
+        
+        let lambda = new Lambda( { region : opts.region } );
+        let tag = grunt.option('version') || `${pkg.name}-${pkg.version.replace(/\./g,'_')}`;
+        let ticker = setInterval(()=> grunt.log.write('.'), 1000);
+
+        grunt.log.writelns(`Release ${tag} to ${target}.`);
+        let lookupVersionAlias = () => {
+            return new Promise( (resolve, reject) => {
+                let params = {
+                    FunctionName : opts.functionName,
+                    Name : tag
+                };
+
+                lambda.getAlias(params, (err, data) => {
+                    if (err) {
+                        grunt.log.debug(`${method} err:`,err);
+                        return reject(err);
+                    }
+
+                    grunt.log.debug('getAlias-Version data:',data);
+                    return resolve({versionAlias : data});
+                });
+            });
+        }
+
+        let lookupTargetAlias = (results) => {
+            return new Promise( (resolve, reject) => {
+                let params = {
+                    FunctionName : opts.functionName,
+                    Name : target
+                };
+
+                lambda.getAlias(params, (err, data) => {
+                    if (err) {
+                        if (err.statusCode === 404) {
+                            data = err;
+                        } else {    
+                            return reject(err);
+                        }
+                    }
+
+                    grunt.log.debug('getAlias-Target data:',data);
+                    results.targetAlias = data;
+                    return resolve(results);
+                });
+            });
+        }
+
+        let setTargetAlias = (results) => {
+            return new Promise( (resolve, reject) => {
+                let params = {
+                    FunctionName : opts.functionName,
+                    FunctionVersion : results.versionAlias.FunctionVersion,
+                    Name : target,
+                    Description : `${opts.functionName} version ${target}`
+                };
+
+                let method = 'createAlias';
+                if (results.targetAlias.FunctionVersion) {
+                    method = 'updateAlias';
+                }
+
+                grunt.log.debug(`method=${method},params=`,params);
+                lambda[method](params, function(err, data) {
+                    if (err) {
+                        grunt.log.debug(`${method} err:`,err);
+                        return reject(err);
+                    }
+                   
+                    grunt.log.debug(`${method} data:`,data);
+                    results.setTargetAlias = data;
+                    return resolve(results);
+                });
+            });
+        };
+        
+        lookupVersionAlias()
+        .then(lookupTargetAlias)
+        .then(setTargetAlias)
+        .then(results => {
+            grunt.log.writelns('.');
+            clearInterval(ticker);
+            grunt.log.writeflags(results.setTargetAlias, 'setTargetAlias Result');
+            done(true);
+        })
+        .catch(err => {
+            grunt.log.writelns('.');
+            clearInterval(ticker);
+            grunt.log.errorlns('lambdaRelease failed:', err);
+            done(false);
+        });
+    }
+
     grunt.registerMultiTask('lambda', function() {
         let action = grunt.option('action') || 'run';
         let func;
@@ -320,7 +508,10 @@ module.exports = (grunt)=>  {
         } else 
         if (action === 'upload') {
             func = lambdaUpload.bind(this);
-        } else {
+        } else 
+        if (action === 'release') {
+            func = lambdaRelease.bind(this);
+        } else  {
             grunt.log.errorlns(`Unexpected action: ${action}`);
             return false;
         }
@@ -351,69 +542,10 @@ module.exports = (grunt)=>  {
             ]);
         }
     });
-
-    grunt.registerTask('lambdaTag', function(funcname, tag, version) {
-        let opts     = this.options({
-            region       : grunt.option('region') || 'us-east-1'
-        });
-        let lambda = new Lambda( opts );
-        let pkg = grunt.config().pkg;
-        let done = this.async();
-
-        if (!tag) {
-            tag = `${pkg.name}-${pkg.version.replace(/\./g,'_')}`;
-            grunt.log.writelns(`No tag specified, use package version ${tag}.`);
-        }
-
-        let getFunction = () => {
-            return new Promise((resolve,reject) => {
-                let p = { FunctionName : funcname }; 
-                if (version) {
-                    p.Qualifier = version;
-                } else {
-                    grunt.log.writelns('No verision specified will use $LATEST.');
-                }
-
-                lambda.getFunction(p, (err, data) => {
-                    if (err) {
-                        return reject(err);
-                    }
-                    
-                    grunt.log.debug('data:',data.Configuration);
-                    resolve(data.Configuration);
-                });
-            });
-        };
-
-        let createAlias = (data) => {
-            return new Promise((resolve,reject) => {
-                let params = {
-                    FunctionName : data.FunctionName,
-                    FunctionVersion : data.Version,
-                    Name : tag,
-                    Description : `${data.FunctionName} version ${tag}`
-                };
-
-                lambda.createAlias(params, function(err, data) {
-                    if (err) {
-                        return reject(err);
-                    }
-                    
-                    return resolve(data);
-                });
-            });
-        };
-
-        getFunction()
-            .then(createAlias)
-            .then(res => {
-                grunt.log.writeflags(res,'updateAlias Result');
-                done(true);
-            })
-            .catch(err => {
-                grunt.log.errorlns(funcname + ' ' + err.message);
-                done(false);
-            });
+    
+    grunt.registerTask('lambdaRelease', function(cmd) {
+        grunt.option('action','release');
+        grunt.task.run([ `lambda${cmd ? ':' + cmd : ''}`, ]);
     });
 
     grunt.registerMultiTask('createTables', function() {
