@@ -39,6 +39,7 @@ jspm_packages
 # Utilities
 util
 util.tar.gz
-
+lucene/
+img/out/
 # Build
 dist
