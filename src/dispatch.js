@@ -78,7 +78,7 @@ module.exports = (app, messages, users ) => {
         appPage.timezone = page.timezone || app.timezone;
         appPage.welcome = page.welcome || app.welcome;
         appPage.help = page.help || app.help;
-
+        appPage.feedback = page.feedback || app.feedback;
         pages[page.id] = appPage;
     });
 

@@ -1,5 +1,6 @@
 'use strict';
 
+const aws = require('aws-sdk');
 const log = require('./log');
 const ld = require('lodash');
 const fb = require('thefacebook');
@@ -71,11 +72,33 @@ class MenuRequestHandler extends RequestHandler{
     }
 
     work() {
-        let templ = new fb.ButtonTemplate('Let me find you..', [
-            this.menuItem('Departing trains', 'schedule_departing'),
-            this.menuItem('Arriving trains', 'schedule_arriving'),
-            this.menuItem('Help', 'help')
-        ]);
+        //let templ = new fb.ButtonTemplate('Let me find you..', [
+        //    this.menuItem('Departing trains', DepartingTripRequestHandler.handlerType),
+        //    this.menuItem('Arriving trains', ArrivingTripRequestHandler.handlerType),
+        //    this.menuItem('Help', HelpRequestHandler.handlerType),
+        //    this.menuItem('Send Feedback', FeedbackRequestHandler.handlerType)
+        //]);
+        
+        let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}/img/buttons`;
+        let templ = new fb.GenericTemplate();
+
+        templ.elements.push(new fb.GenericTemplateElement({
+            title : 'Find Trains',
+            image_url : `${s3Bucket}/train_departing.png`,
+            buttons : [ 
+                this.menuItem('Departing', DepartingTripRequestHandler.handlerType),
+                this.menuItem('Arriving', ArrivingTripRequestHandler.handlerType) 
+            ]
+        }));
+
+        templ.elements.push(new fb.GenericTemplateElement({
+            title : 'Help & Feedback',
+            image_url : `${s3Bucket}/shoutout.png`,
+            buttons : [ 
+                this.menuItem('Get Help', HelpRequestHandler.handlerType),
+                this.menuItem('Send Feedback', FeedbackRequestHandler.handlerType) 
+            ]
+        }));
 
         return this.send(templ)
         .then(() => { 
@@ -83,7 +106,6 @@ class MenuRequestHandler extends RequestHandler{
             return this.job; 
         });
     }
-    
 }
 
 class MultiLineTextRequestHandler extends RequestHandler {
@@ -149,6 +171,110 @@ class HelpRequestHandler extends MultiLineTextRequestHandler {
         ];
 
         super(job,HelpRequestHandler.handlerType,speech);
+    }
+}
+
+class FeedbackRequestHandler extends RequestHandler {
+    static get handlerType() { return 'feedback'; }
+
+    constructor(job) {
+        super (job, FeedbackRequestHandler.handlerType);
+        let currentHandlerType = ld.get(this,'job.user.data.currentRequest.type');
+        if (currentHandlerType !== FeedbackRequestHandler.handlerType) {
+            this.user.data.currentRequest = {};
+        }
+    }
+    
+    set state(state) {
+        ld.get(this,'user.data.currentRequest').state = state;
+    }
+    
+    get state() {
+        return ld.get(this,'user.data.currentRequest.state');
+    }
+    
+    work() {
+        let state = (this.state || 'NEW');
+        let doWork = () => {
+            this.log.info(`doWork for state ${state}`);
+            if (state === 'NEW') {
+                return this.onNew();
+            }
+            else
+            if (state === 'WAIT_RESPONSE') {
+                return this.onWaitResponse();
+            } 
+
+            return Promise.resolve({});
+        };
+        return doWork().then(() => this.job );
+    }
+
+    onNew() {
+        this.log.debug('exec onNew');
+        this.user.data.currentRequest = { 
+            type : this.type, 
+            state : 'NEW',
+            data : this.payload
+        };
+
+        return this.send('Tell me what\'s on your mind.')
+            .then(() => {
+                this.state = 'WAIT_RESPONSE';
+            });
+    }
+
+    onWaitResponse() {
+        return new Promise((resolve) => {
+            this.log.debug({ feedback : this.job.msg }, 'exec onWaitResponse');
+            let message = JSON.stringify({
+                user : this.user.serialize(),
+                message : this.job.msg
+            },null, 5);
+
+            let profile = ld.get(this.job,'user.profile');
+            if (profile) {
+                profile = `${profile.first_name} ${profile.last_name}`;
+            } else {
+                profile = this.user.userId;
+            }
+
+            let subject = `Message from ${this.app.appId} - ${this.app.otp.routerId} ` +
+                `user ${profile}`;
+            let params = {
+                Destination : {
+                    ToAddresses: [ this.app.feedback.to ]
+                },
+                Source : this.app.feedback.from,
+                ReplyToAddresses : [ this.app.feedback.from ],
+                Message : {
+                    Subject : {
+                        Data : subject
+                    },
+                    Body : {
+                        Text : {
+                            Data : message
+                        }
+                    }
+                }
+
+            };
+            let ses = new aws.SES();
+          
+            ses.sendEmail(params, (err, data) => {
+                if (err) {
+                    this.log.error({ error : err}, 'SES Error');
+                } else {
+                    this.log.debug({ ses : data }, 'Feedback has been sent.');
+                }
+               
+                resolve(true);
+            });
+        })
+        .then(() => {
+            this.job.done = true;
+            return this.send('Thanks for sharing.');
+        });
     }
 }
 
@@ -985,6 +1111,10 @@ class HandlerFactory {
         if (handlerType === HelpRequestHandler.handlerType) {
             _log.info('Create HelpRequestHandler..');
             handler = new HelpRequestHandler(job);
+        } else 
+        if (handlerType === FeedbackRequestHandler.handlerType) {
+            _log.info('Create FeedbackRequestHandler..');
+            handler = new FeedbackRequestHandler(job);
         } else {
             _log.info('Create UnknownRequestHandler..');
             handler = new UnknownRequestHandler(job);
@@ -997,6 +1127,7 @@ class HandlerFactory {
     static get WelcomeRequestHandlerType() { return WelcomeRequestHandler.handlerType; }
     static get MenuRequestHandlerType() { return MenuRequestHandler.handlerType; }
     static get HelpRequestHandlerType() { return HelpRequestHandler.handlerType; }
+    static get FeedbackRequestHandlerType() { return FeedbackRequestHandler.handlerType; }
     static get DepartingTripRequestHandlerType() { 
         return DepartingTripRequestHandler.handlerType; }
     static get ArrivingTripRequestHandlerType() { 
@@ -1007,6 +1138,7 @@ exports.UnknownRequestHandler = UnknownRequestHandler;
 exports.WelcomeRequestHandler = WelcomeRequestHandler;
 exports.MenuRequestHandler = MenuRequestHandler;
 exports.HelpRequestHandler = HelpRequestHandler;
+exports.FeedbackRequestHandler = FeedbackRequestHandler;
 exports.DepartingTripRequestHandler = DepartingTripRequestHandler;
 exports.ArrivingTripRequestHandler = ArrivingTripRequestHandler;
 exports.HandlerFactory = HandlerFactory;
