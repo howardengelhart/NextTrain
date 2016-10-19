@@ -534,17 +534,29 @@ module.exports = (grunt)=>  {
     });
 
     grunt.registerTask('lambdaDeploy', function(cmd) {
+        let Tasks;
+        let target = grunt.option('target');
+
         if (cmd) {
-            grunt.task.run([
+            Tasks = [
                 `lambdaBuild:${cmd}`, 
                 `lambdaUpload:${cmd}`
-            ]);
+            ];
+            if (target) {
+                Tasks.push(`lambdaRelease:${cmd}`);
+            }
+
         } else {
-            grunt.task.run([
+            Tasks = [
                 'lambdaBuild',
                 'lambdaUpload'
-            ]);
+            ];
+            if (target) {
+                Tasks.push('lambdaRelease');
+            }
         }
+
+        grunt.task.run(Tasks);
     });
     
     grunt.registerTask('lambdaRelease', function(cmd) {

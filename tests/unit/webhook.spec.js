@@ -73,6 +73,7 @@ describe('webhook', () => {
                     path: {},
                     querystring: { }
                 },
+                header : { Host : '' },
                 context : {}
             };
         });
@@ -123,6 +124,7 @@ describe('webhook', () => {
             mockEvent = {
                 'body-json': {},
                 params: {
+                    header : { Host : '' },
                     path: {
                         app : 'a-123'       
                     },
@@ -211,6 +213,9 @@ describe('webhook', () => {
                 params: {
                     path: {
                         app : 'a-123'       
+                    },
+                    header : {
+                        Host : ''
                     }
                 },
                 'body-json' : {

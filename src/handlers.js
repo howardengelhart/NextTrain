@@ -334,7 +334,13 @@ class TripRequestHandler extends RequestHandler {
 
         return moment(dt).tz(this.timezone).format(format);
     }
-   
+
+    dateToClockUrl(dt) {
+        let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}/img/clocks`;
+        let fname = moment(dt).tz(this.timezone)
+            .format('d_A_hh_mm').replace('AM','0').replace('PM','1');
+        return `${s3Bucket}/${fname}.png`;
+    }
     
     //Optional alternative for formatting station choices
     
@@ -668,13 +674,15 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             let i = plan.itinerary;
             let routerId = this.app.otp.routerId;
             let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
+            let imgLink = this.dateToClockUrl(i.startTime);
             this.log.debug(`trip link: ${link}`);
             let cfg = {
                 title : `Departs ${this.abbrevStopName(i.from)} - ` +
                     this.displayDate(i.startTime),
                 subtitle : `Arrives ${this.abbrevStopName(i.to)} - ` +
                     `${this.displayDate(i.endTime)}. Trip time is ` +
-                    moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes'
+                    moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes',
+                image_url : imgLink
             };
 
             cfg.buttons = [
@@ -847,6 +855,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
         for (let plan of plans) {
             let i = plan.itinerary;
             let endTime = this.displayDate(i.endTime);
+            let imgLink = this.dateToClockUrl(i.endTime);
 
             if (moment(i.endTime).tz(this.timezone).isBefore(now)) {
                 this.log.debug(`trip has endTime (${endTime}) < now, skip`);
@@ -857,7 +866,8 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             let routerId = this.app.otp.routerId;
             let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
             let cfg = {
-                title : `Arrives ${this.abbrevStopName(i.to)} - ${endTime}`
+                title : `Arrives ${this.abbrevStopName(i.to)} - ${endTime}`,
+                image_url : imgLink
 //                title : `Scheduled to arrive in ${arrivesIn} (${this.displayDate(i.endTime)})`
             };
 
@@ -899,9 +909,15 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
 class HandlerFactory {
 
     static CreateHandler(job, handlerType) {
+        let user = { userId : job.user.userId};
+        let profile = ld.get(job,'user.profile');
+        if (profile) {
+            user.name = `${profile.first_name} ${profile.last_name}`;
+        }
         let handler, _log = log.child({ 
                 module : 'HandlerFactory::CreateHandler',
-                job : job
+                job : job,
+                user : user
             });
 
         _log.debug(`Locating handler, handlerType=${handlerType}`);

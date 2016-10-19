@@ -13,7 +13,7 @@ const wait = (timeout) => ( new Promise( (resolve) => setTimeout(resolve,timeout
 function textPreprocessor(wit,msg,job) {
     return wit.message(msg.message.text)
     .then(res => {
-        log.info({ witResponse : res },'Handling wit response.');
+        log.debug({ witResponse : res },'Handling wit response.');
         let payload = {};
         for (let ent in res.entities) {
             payload[ent] = ld.get(res,`entities.${ent}[0].value`);
