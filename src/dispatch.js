@@ -133,12 +133,16 @@ module.exports = (app, messages, users ) => {
                     if (job.done && (handler.type !== HandlerFactory.MenuRequestHandlerType)) {
                         log.info('currentRequest is DONE, reset user for next request.');
                         delete job.user.data.currentRequest;
-                        return action.send(job.user.userId,'typing_on',job.app.token)
-                            .then(() => wait(1500))
-                            .then(() => ((HandlerFactory.CreateHandler(
-                                job,HandlerFactory.MenuRequestHandlerType
+                        if ( (handler.type === HandlerFactory.WelcomeRequestHandlerType) ||
+                            (handler.type === HandlerFactory.FeedbackRequestHandlerType)  ||
+                            (handler.type === HandlerFactory.HelpRequestHandlerType) ) {
+                            return action.send(job.user.userId,'typing_on',job.app.token)
+                                .then(() => wait(1500))
+                                .then(() => ((HandlerFactory.CreateHandler(
+                                    job,HandlerFactory.MenuRequestHandlerType
                                 )).work()) )
-                            .then(() => job);
+                                .then(() => job);
+                        }
                     }
                     return job;
                 });

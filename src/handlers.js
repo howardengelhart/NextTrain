@@ -84,16 +84,16 @@ class MenuRequestHandler extends RequestHandler{
 
         templ.elements.push(new fb.GenericTemplateElement({
             title : 'Find Trains',
-            image_url : `${s3Bucket}/train_departing.png`,
+            image_url : `${s3Bucket}/menu_trains.png`,
             buttons : [ 
-                this.menuItem('Departing', DepartingTripRequestHandler.handlerType),
-                this.menuItem('Arriving', ArrivingTripRequestHandler.handlerType) 
+                this.menuItem('Arriving', ArrivingTripRequestHandler.handlerType),
+                this.menuItem('Departing', DepartingTripRequestHandler.handlerType)
             ]
         }));
 
         templ.elements.push(new fb.GenericTemplateElement({
             title : 'Help & Feedback',
-            image_url : `${s3Bucket}/shoutout.png`,
+            image_url : `${s3Bucket}/menu_help.png`,
             buttons : [ 
                 this.menuItem('Get Help', HelpRequestHandler.handlerType),
                 this.menuItem('Send Feedback', FeedbackRequestHandler.handlerType) 
@@ -726,7 +726,29 @@ class TripRequestHandler extends RequestHandler {
             history.pop();
         }
         this.user.data.tripHistory = history;
-        return this;
+        delete this.user.data.currentRequest;
+
+        let text = new fb.Text('Anything else?');
+        //let title;
+        //if (this.type === 'schedule_departing') {
+        //    title = 'Departing';
+        //} else {
+        //    title = 'More Arriving';
+        //}
+
+        text.quick_replies.push(new fb.TextQuickReply( { 
+            title : 'Arriving',
+            payload : JSON.stringify({ type : ArrivingTripRequestHandler.handlerType})
+        }));
+        text.quick_replies.push(new fb.TextQuickReply( { 
+            title : 'Departing',
+            payload : JSON.stringify({ type : DepartingTripRequestHandler.handlerType})
+        }));
+        text.quick_replies.push(new fb.TextQuickReply( { 
+            title : 'Menu', 
+            payload : JSON.stringify({ type : MenuRequestHandler.handlerType})
+        }));
+        return this.send(text);
     }
 
 }
