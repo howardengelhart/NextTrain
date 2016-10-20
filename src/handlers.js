@@ -562,6 +562,10 @@ class TripRequestHandler extends RequestHandler {
 
     getStationFromList(stationName ) {
         this.log.debug('exec getStationFromList');
+        if (stationName.match(/^\W*ny\W*$/i)){
+            this.log.debug(`Replacing ${stationName} with NEW YORK`);
+            stationName = 'NEW YORK';
+        }
         return this.otp.findStops()
         .then((results) => {
             if (!results || !results.length) {

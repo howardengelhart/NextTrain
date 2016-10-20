@@ -552,6 +552,7 @@ module.exports = (grunt)=>  {
                 'lambdaUpload'
             ];
             if (target) {
+                grunt.option('publish',true);
                 Tasks.push('lambdaRelease');
             }
         }
