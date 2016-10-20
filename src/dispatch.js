@@ -71,7 +71,8 @@ module.exports = (app, messages, users ) => {
             stageVars : app.stageVars,
             token : page.token,
             pageId : page.id,
-            pageName : page.name
+            pageName : page.name,
+            aliases : page.aliases
         };
         appPage.otp = ld.assign({},app.otp,page.otp);
         appPage.wit = ld.assign({},app.wit,page.wit);

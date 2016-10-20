@@ -559,13 +559,24 @@ class TripRequestHandler extends RequestHandler {
             return this.send('No stations found, try typing one in.');
         });
     }
+    
+    findAlias(a) {
+        let aliases = this.app.aliases;
+        for (let stop in aliases) {
+            for (let alias of aliases[stop]) {
+                let re = new RegExp(alias,'i');
+                if (a.match(re)) {
+                    this.log.debug(`findAlias found ${stop} for alias ${a}.`);
+                    return stop;
+                }
+            }
+        }
+        return a;
+    }
 
     getStationFromList(stationName ) {
         this.log.debug('exec getStationFromList');
-        if (stationName.match(/^\W*ny\W*$/i)){
-            this.log.debug(`Replacing ${stationName} with NEW YORK`);
-            stationName = 'NEW YORK';
-        }
+        stationName = this.findAlias(stationName);
         return this.otp.findStops()
         .then((results) => {
             if (!results || !results.length) {
@@ -666,7 +677,10 @@ class TripRequestHandler extends RequestHandler {
     }
     
     onWaitOrigin() {
-        this.log.debug('exec onWaitOrigin, job.payloadType=%s',this.job.payloadType);
+        this.log.debug({
+            payloadType : this.job.payloadType, 
+            payload : this.job.payload
+        }, 'exec onWaitOrigin');
         if (this.job.payloadType === 'location') {
             return this.getStationFromLocation(this.payload.coordinates);
         } else
@@ -680,14 +694,18 @@ class TripRequestHandler extends RequestHandler {
                 if (!this.request.data.origin) {
                     this.request.data.origin = this.payload.stop.name;
                 }
-                return this.evalState();
             }
+            return this.evalState();
         }
         
         return Promise.resolve(this.job);
     }
 
     onWaitDestination() {
+        this.log.debug({
+            payloadType : this.job.payloadType, 
+            payload : this.job.payload
+        }, 'exec onWaitDestination');
         if (this.job.payloadType === 'location') {
             return this.getStationFromLocation(this.payload.coordinates);
         } else
@@ -701,14 +719,27 @@ class TripRequestHandler extends RequestHandler {
                 if (!this.request.data.destination) {
                     this.request.data.destination = this.payload.stop.name;
                 }
-                return this.evalState();
             }
+            return this.evalState();
         }
         
         return Promise.resolve(this.job);
     }
     
     onReady() {
+        if (this.request.data.originStop.id === this.request.data.destinationStop.id ) {
+            return this.send(
+                'FDR once said "There are many ways of going forward, ' +
+                'but only one way of standing still."'
+            )
+            .then(() => {
+                let org = this.request.data.origin;
+                let dst = this.request.data.destination;
+                return this.send(`"${org}" and "${dst}" appear to be one in the same.`);
+            })
+            .then(() => this.finishRequest('Try again?') );
+        }
+
         let otp = this.otp;
         let params = this.getTripParams();
         let bucket = this.app.appId;
@@ -716,12 +747,25 @@ class TripRequestHandler extends RequestHandler {
 
         this.log.debug({ otpParams : params }, 'calling findPlans');
         return otp.findPlans(params)
-        .then(plans  => compressAndStorePlan(bucket, key, this.timezone, plans) )
-        .then(compressedPlans => this.sendTrips(compressedPlans) )
-        .then(() => this.finishRequest() );
+        .then(plans => {
+            if (ld.get(plans,'plan.itineraries') === undefined) {
+                let response = 'Unable to locate any trips at this time.';
+                if (plans.error) {
+                    this.log.error(plans.error, 'findPlans error response');
+                    if (plans.error.msg) {
+                        response = plans.error.msg;
+                    }
+                }
+                return this.send(response)
+                    .then(() => this.finishRequest('Try again?') );
+            }
+            return compressAndStorePlan(bucket, key, this.timezone, plans) 
+                .then(compressedPlans => this.sendTrips(compressedPlans) )
+                .then(() => this.finishRequest() );
+        });
     }
 
-    finishRequest() {
+    finishRequest(prompt) {
         this.job.done = true;
         this.state = 'DONE';
         let history = this.user.data.tripHistory || [];
@@ -732,7 +776,7 @@ class TripRequestHandler extends RequestHandler {
         this.user.data.tripHistory = history;
         delete this.user.data.currentRequest;
 
-        let text = new fb.Text('Anything else?');
+        let text = new fb.Text(prompt || 'Anything else?');
         //let title;
         //if (this.type === 'schedule_departing') {
         //    title = 'Departing';
