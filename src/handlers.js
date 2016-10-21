@@ -759,7 +759,7 @@ class TripRequestHandler extends RequestHandler {
                 return this.send(response)
                     .then(() => this.finishRequest('Try again?') );
             }
-            return compressAndStorePlan(bucket, key, this.timezone, plans) 
+            return compressAndStorePlan(bucket, key, this.app, plans) 
                 .then(compressedPlans => this.sendTrips(compressedPlans) )
                 .then(() => this.finishRequest() );
         });

@@ -72,6 +72,8 @@ module.exports = (app, messages, users ) => {
             token : page.token,
             pageId : page.id,
             pageName : page.name,
+            pageLink : `https://www.facebook.com/${page.id}`,
+            messengerLink : `https://m.me/${page.id}`,
             aliases : page.aliases
         };
         appPage.otp = ld.assign({},app.otp,page.otp);

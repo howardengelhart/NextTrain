@@ -1,0 +1,95 @@
+body {
+    background: #f5f5f5;
+    color: #666;
+    font-family: 'Source Sans Pro', Helvetica, Arial, sans-serif;
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 400;
+}
+hr {
+    border-bottom: 1px dotted #aaa;
+    border-top: 0;
+}
+.page-wrap {
+    width: 640px;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+.head-wrap {
+    display: block;
+    background: #fff;
+    border: 1px solid #ddd;
+    margin: 0;
+    padding: 5px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+    .head-wrap img {
+        display: inline-block;
+        float: left;
+        height: 40px;
+        width: 40px;
+    }
+    .head-wrap h1 {
+        display: inline;
+        font-size: 24px;
+        line-height: 36px;
+        font-weight: 300;
+        margin: 0;
+        padding-left: 10px;
+    }
+.summary-block {
+    display: block;
+    overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
+}
+    .summary-block span {
+        font-size: 16px;
+    }
+    .summary-block h2 {
+        margin: 0;
+        color: #4CAF50;
+    }
+.depart-summary,
+.arrive-summary {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    width: 45%;
+    display: inline-block;
+    vertical-align: top;
+}
+.summary-line {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+    span.summary-line strong {
+        text-align: right;
+        color: #FF9800;
+        float: right;
+    }
+.transit-name {
+    color: #37ABC8;
+    padding: 5px;
+    margin: 0;
+}
+    .transit-stops {
+        color: #999;
+        margin-top: 0;
+    }
+        .transit-stops li.highlight-stop {
+            color: #666;
+        }
+            .transit-stops .highlight-stop strong {
+                margin-left: 10px;
+            }
+.centered {
+    text-align: center;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    font-style: italic;
+}

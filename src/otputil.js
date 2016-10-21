@@ -35,10 +35,13 @@ function putObject (s3, params) {
     });  
 }
 
-function compressPlanItinerary(plan, i, timezone) {
+function compressPlanItinerary(plan, i, app) {
     return {
         date : (plan.date - (plan.date % 3600000)), // round to the hour
-        timezone : timezone,
+        timezone : app.timezone,
+        pageName : app.pageName,
+        pageLink : app.pageLink,
+        messengerLink : app.messengerLink,
         from : plan.from.name,
         to : plan.to.name,
         duration : i.duration,
@@ -83,11 +86,11 @@ function compressPlanItinerary(plan, i, timezone) {
     };
 }
 
-exports.compressAndStorePlan = (bucket, key, timezone, planner) => {
+exports.compressAndStorePlan = (bucket, key, app, planner) => {
     const crypto = require('crypto');
     let s3 = new S3();
     return Promise.all(planner.plan.itineraries.map(itinerary => {
-        let i = compressPlanItinerary(planner.plan,itinerary, timezone);
+        let i = compressPlanItinerary(planner.plan,itinerary, app);
         let hash = crypto.createHash('md5');
         let result = {
             itinerary : i
