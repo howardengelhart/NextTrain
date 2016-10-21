@@ -43,3 +43,5 @@ lucene/
 img/out/
 # Build
 dist
+
+.DS_Store
