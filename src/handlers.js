@@ -63,6 +63,7 @@ class MenuRequestHandler extends RequestHandler{
 
     constructor(job) {
         super (job, MenuRequestHandler.handlerType);
+        delete job.user.data.currentRequest;
     }
     
     menuItem (t,i) {
@@ -148,6 +149,7 @@ class WelcomeRequestHandler extends MultiLineTextRequestHandler {
         let speech = job.app.welcome.map((line) => {
             return line.replace('{userName}',userName);
         });
+        delete job.user.data.currentRequest;
         super(job,WelcomeRequestHandler.handlerType,speech);
     }
 }
@@ -170,6 +172,7 @@ class HelpRequestHandler extends MultiLineTextRequestHandler {
             'clicking the menu button on the bottom left corner of Messenger.'
         ];
 
+        delete job.user.data.currentRequest;
         super(job,HelpRequestHandler.handlerType,speech);
     }
 }
@@ -285,12 +288,8 @@ class TripRequestHandler extends RequestHandler {
         if (currentHandlerType !== type) {
             this.user.data.currentRequest = {};
         }
+        this.noob = (ld.get(this,'user.data.tripHistory.length',0) <= 3);
     }
-
-    get noob() {
-        return (ld.get(this,'user.data.tripHistory.length',0) <= 3);
-    }
-
 
     get otp() {
         if (!this._otp) {
@@ -300,20 +299,20 @@ class TripRequestHandler extends RequestHandler {
         return this._otp;
     }
     
-    get shouldSendTripsWide() {
-        return ld.get(this,'app.stageVars.sendTripsWide',false);
-    }
-
-    get shouldRequestStationSelectionWide() {
-        return ld.get(this,'app.stageVars.requestStationSelectionWide',false);
-    }
-
     get numItineraries() {
         return ld.get(this,'app.stageVars.numItineraries',3);
     }
 
     get request() {
         return ld.get(this,'user.data.currentRequest');
+    }
+
+    set fails(fails) {
+        ld.get(this,'user.data.currentRequest').fails = fails;
+    }
+    
+    get fails() {
+        return ld.get(this,'user.data.currentRequest.fails',0);
     }
 
     set state(state) {
@@ -401,43 +400,6 @@ class TripRequestHandler extends RequestHandler {
         return this.send(text);
     }
     
-//    requestStop(prompt) {
-//        let trip = ld.get(this,'user.data.tripHistory[0]');
-//        let text = new fb.Text(prompt);
-//        text.quick_replies.push(new fb.LocationQuickReply() );
-//        log.debug({ thisTrip : this.request, oldTrip : trip}, 'REQUEST STOP QR CHECK');
-//        
-//        if (trip) {
-//            let re, newId;
-//            
-//            // If we are looking for an Origin, make sure the old trip does not
-//            // match this trip's destination as we do not want to suggest a possible
-//            // destination match for the origin.
-//            // If we are looking for a Destination, then make sure we don't suggest
-//            // something we've already used for the origin.
-//            
-//            if (this.state === 'WAIT_ORIGIN') {
-//                re = new RegExp(ld.get(this,'request.data.destination',''),'gi');
-//                newId = ld.get(this,'request.data.destinationStop.id','');
-//            } else {
-//                re = new RegExp(ld.get(this,'request.data.origin',''),'gi');
-//                newId = ld.get(this,'request.data.originStop.id','');
-//            }
-//
-//            [trip.data.destinationStop, trip.data.originStop].forEach( (oldStop) => {
-//                if ((!oldStop.name.match(re)) && (oldStop.id !== newId)) {
-//                    text.quick_replies.push(new fb.TextQuickReply( { 
-//                        title: this.abbrevStopName(oldStop.name),
-//                        payload: JSON.stringify({ type: 'stop', stop: oldStop })
-//                    }));
-//                }
-//
-//            });
-//        }
-//        
-//        return this.send(text);
-//    }
-    
     requestOrigin() {
         this.log.debug('exec requestOrigin');
         this.state = 'WAIT_ORIGIN';
@@ -470,8 +432,8 @@ class TripRequestHandler extends RequestHandler {
     
     //Optional alternative for formatting station choices
     
-    requestStationSelectionWide (stations) {
-        this.log.debug({ stops : stations}, 'exec requestStationSelectionWide');
+    requestStationSelection(stations) {
+        this.log.debug({ stops : stations}, 'exec requestStationSelection');
         let templ = new fb.GenericTemplate();
         let action = stations.length > 1 ? 'Select' : 'Confirm';
 //        let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
@@ -512,30 +474,6 @@ class TripRequestHandler extends RequestHandler {
         return this.send(templ);
     }
 
-    requestStationSelection(stations) {
-        this.log.debug('exec requestStationSelection');
-        if (this.shouldRequestStationSelectionWide) {
-            return this.requestStationSelectionWide(stations);
-        }
-        let action = stations.length > 1 ? 'Select' : 'Confirm';
-//        let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
-        let templ = new fb.ButtonTemplate(action);
-
-        templ.buttons = stations.map( (station) => {
-            let payload = { type : 'stop', stop : station };
-            let stopName = this.abbrevStopName(station.name);
-            let title = stopName;
-            if (station.dist) {
-                let distance = Math.round((station.dist * 0.000621371) * 10) / 10;
-                title = `${stopName} ${distance} m`;
-            }
-            return new fb.PostbackButton({ title : title, payload : JSON.stringify(payload) });
-        });
-       
-        this.log.info(`Sending ${stations.length} stops to user.`);
-        return this.send(templ);
-    }
-    
     getStationFromLocation(coordinates) {
         this.log.debug('exec getStationFromLocation');
         let otp = this.otp;
@@ -548,7 +486,9 @@ class TripRequestHandler extends RequestHandler {
         return otp.findStops(otpParams)
         .then((results) => {
             if (!results || !results.length) {
-                return this.send('No local stations found, try typing one in.');
+                return this.stationLookupFailure(
+                    'No local stations found, try typing one in.'
+                );
             }
 
             this.log.debug({ results : results }, 'OTP found stops');
@@ -556,7 +496,9 @@ class TripRequestHandler extends RequestHandler {
         })
         .catch((err) => {
             this.log.error('Error: %s', err.message);
-            return this.send('No stations found, try typing one in.');
+            return this.stationLookupFailure(
+                'No local stations found, try typing one in.'
+            );
         });
     }
     
@@ -606,7 +548,9 @@ class TripRequestHandler extends RequestHandler {
             }
 
             if (!matches || !matches.length) {
-                return this.send(`No matching stations found for "${stationName}", try again.`);
+                return this.stationLookupFailure(
+                    'Sorry, I couldn\'t find any Stations, try a different spelling?'
+                );
             }
 
             if (matches.length > 5) {
@@ -636,17 +580,33 @@ class TripRequestHandler extends RequestHandler {
             this.log.debug({ results : matches, resultType: typeof(matches) }, 
                 'OTP found stops');
             return this.requestStationSelection(matches );
-        })
-        .catch((err) => {
-            this.log.error('Error: %s', err.message);
-            return this.send('No stations found, try typing one in.');
         });
     }
-    
+
+    stationLookupFailure(txt) {
+        this.fails += 1;
+        if (this.fails > 2) {
+            this.fails = 0;
+            return this.send(
+                'It looks like you are having a hard time finding a station.'
+            ).then(() => this.onHelp());
+        }
+        return this.send(txt); 
+    }
+
+    stationFound() {
+        this.fails = 0;
+    }
+
     work() {
         let state = ld.get(this, 'job.user.data.currentRequest.state','NEW');
         let doWork = () => {
-            this.log.info(`doWork for state ${state}`);
+            let wantsHelp = this.payload.wantsHelp;
+            this.log.info(`doWork for state ${state} helpRequired ${wantsHelp}`);
+            if (wantsHelp) {
+                return this.onHelp();
+            }
+            else
             if (state === 'NEW') {
                 return this.onNew();
             }
@@ -666,6 +626,41 @@ class TripRequestHandler extends RequestHandler {
             return Promise.resolve({});
         };
         return doWork().then(() => this.job );
+    }
+
+    onHelp() {
+        let text;
+        if (this.state === 'WAIT_DESTINATION') {
+            text = new fb.Text([
+                'We need to find the station that will be the ultimate destination.  ',
+                'If you click the Location button you can send your current location ',
+                'and I will look for any stations within a few miles.  You can also ',
+                'use the map to search for the station or other locations you know are ',
+                'close to it.'
+            ].join(''));
+        }
+        else
+        if (this.state === 'WAIT_ORIGIN') {
+            text = new fb.Text([
+                'We need to find the station where the trip will be starting.  ',
+                'If you click the Location button you can send your current location ',
+                'and I will look for any stations within a few miles.  You can also ',
+                'use the map to search for the station or other locations you know are ',
+                'close to it.'
+            ].join(''));
+        }
+
+        text.quick_replies.push(new fb.LocationQuickReply() );
+        text.quick_replies.push(new fb.TextQuickReply( { 
+            title : 'Menu', 
+            payload : JSON.stringify({ type : MenuRequestHandler.handlerType})
+        }));
+        text.quick_replies.push(new fb.TextQuickReply( { 
+            title : 'Help', 
+            payload : JSON.stringify({ type : HelpRequestHandler.handlerType})
+        }));
+
+        return this.send(text);
     }
 
     onNew() {
@@ -690,6 +685,7 @@ class TripRequestHandler extends RequestHandler {
         } else 
         if (this.job.payloadType === 'postback') {
             if (this.payload.type === 'stop') {
+                this.stationFound();
                 this.request.data.originStop = this.payload.stop;
                 if (!this.request.data.origin) {
                     this.request.data.origin = this.payload.stop.name;
@@ -715,6 +711,7 @@ class TripRequestHandler extends RequestHandler {
         } else 
         if (this.job.payloadType === 'postback') {
             if (this.payload.type === 'stop') {
+                this.stationFound();
                 this.request.data.destinationStop = this.payload.stop;
                 if (!this.request.data.destination) {
                     this.request.data.destination = this.payload.stop.name;
@@ -777,13 +774,6 @@ class TripRequestHandler extends RequestHandler {
         delete this.user.data.currentRequest;
 
         let text = new fb.Text(prompt || 'Anything else?');
-        //let title;
-        //if (this.type === 'schedule_departing') {
-        //    title = 'Departing';
-        //} else {
-        //    title = 'More Arriving';
-        //}
-
         text.quick_replies.push(new fb.TextQuickReply( { 
             title : 'Arriving',
             payload : JSON.stringify({ type : ArrivingTripRequestHandler.handlerType})
@@ -862,7 +852,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
         return text;
     }
     
-    sendTripsWide (plans ) {
+    sendTrips(plans ) {
         this.log.debug('exec sendTrips');
         let templ = new fb.GenericTemplate();
 
@@ -896,33 +886,6 @@ class DepartingTripRequestHandler extends TripRequestHandler {
         return this.send(templ);
     }
     
-    sendTrips (plans ) {
-        this.log.debug('exec sendTrips');
-        if (this.shouldSendTripsWide) {
-            return this.sendTripsWide(plans);
-        }
-        let templ = new fb.ButtonTemplate('Departing at');
-
-        for (let plan of plans) {
-            let i = plan.itinerary;
-            let routerId = this.app.otp.routerId;
-            let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
-            let startTime = this.displayDate(i.startTime);
-            let tripTime = moment(i.endTime).diff(moment(i.startTime), 'minutes') + ' minutes';
-            let cfg = { title : `${startTime} - ${tripTime}`, url : link };
-
-            this.log.info({trip: cfg}, 'SEND TRIP');
-            templ.buttons.push(new fb.UrlButton(cfg));
-        }
-        
-        if (templ.buttons.length < 1 ) {
-            return this.send('Sorry, but I wasn\'t able to find any trips. Try starting over?');
-        }
-        
-        return this.send(templ);
-    }
-    
-
     getTripParams() {
         return {
             fromPlace : this.request.data.originStop.id,
@@ -1004,46 +967,8 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
     }
 
     
-    sendTrips (plans ) {
+    sendTrips(plans ) {
         this.log.debug('exec sendTrips');
-        if (this.shouldSendTripsWide) {
-            return this.sendTripsWide(plans);
-        }
-
-        let templ = new fb.ButtonTemplate('Arriving in');
-        let now = moment().tz(this.timezone);
-
-        plans = (plans || []).sort((a,b) => ( a.itinerary.endTime > b.itinerary.endTime ));
-        for (let plan of plans) {
-            this.log.debug({ plan : plan}, 'HANDLE PLAN');
-            let i = plan.itinerary;
-            let endTime = this.displayDate(i.endTime);
-            
-            if (moment(i.endTime).tz(this.timezone).isBefore(now)) {
-                this.log.debug(`trip has endTime (${endTime}) < now, skip`);
-                continue;
-            }
-            
-            let routerId = this.app.otp.routerId;
-            let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
-            let arrivesIn = moment(i.endTime).tz(this.timezone).fromNow(true);
-            
-            let cfg = { title : `${arrivesIn} - ${endTime}`, url : link };
-
-            this.log.info({trip: cfg}, 'SEND TRIP');
-            templ.buttons.push(new fb.UrlButton(cfg));
-        }
-
-        if (templ.buttons.length < 1 ) {
-            return this.send('Sorry, but I wasn\'t able to find any trips. Try starting over?');
-        }
-        
-        return this.send(templ);
-    }
-    
-    
-    sendTripsWide (plans ) {
-        this.log.debug('exec sendTripsWide');
         let templ = new fb.GenericTemplate();
         let now = moment().tz(this.timezone);
 
@@ -1116,6 +1041,8 @@ class HandlerFactory {
                 user : user
             });
 
+        let currentHandlerType = ld.get(job,'user.data.currentRequest.type');
+
         _log.debug(`Locating handler, handlerType=${handlerType}`);
 
         // If the handlerType was not passed in, first check for high priorit checks.
@@ -1126,6 +1053,18 @@ class HandlerFactory {
                 handlerType = job.payload.item;
                 job.payload = {};
             } else
+            // User is trying to get help, that takes priority over current request
+            if ((job.payloadType === 'text') && 
+                    (ld.get(job,'payload.intent') === HelpRequestHandler.handlerType)) {
+                if ((currentHandlerType === DepartingTripRequestHandler.handlerType) || 
+                    (currentHandlerType === ArrivingTripRequestHandler.handlerType) ) {
+                    handlerType = currentHandlerType;
+                    job.payload = { wantsHelp : true };
+                } else  {
+                    handlerType = HelpRequestHandler.handlerType;
+                    job.payload = {};
+                }
+            } else
             // User is trying to get the menu, that takes priority over current request
             if ((job.payloadType === 'text') && 
                     (ld.get(job,'payload.intent') === MenuRequestHandler.handlerType)) {
@@ -1133,7 +1072,7 @@ class HandlerFactory {
                 job.payload = {};
             // If the user is already in the middle of a request, handle that
             } else {
-                handlerType = ld.get(job,'user.data.currentRequest.type');
+                handlerType = currentHandlerType;
             }
         } 
 
