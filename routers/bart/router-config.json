@@ -1,0 +1,19 @@
+{
+   "requestLogFile" : "/opt/otp/logs/requests.log",
+   "updaters": [
+      {
+          "type": "real-time-alerts",
+          "frequencySec": 60,
+          "url": "http://api.bart.gov/gtfsrt/alerts.aspx",
+          "feedId": "1"
+      },
+      {
+          "type": "stop-time-updater",
+          "frequencySec": 60,
+          "sourceType": "gtfs-http",
+          "url": "http://api.bart.gov/gtfsrt/tripupdate.aspx",
+          "feedId": "1"
+      }
+   ]
+}
+
