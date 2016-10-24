@@ -74,13 +74,6 @@ class MenuRequestHandler extends RequestHandler{
     }
 
     work() {
-        //let templ = new fb.ButtonTemplate('Let me find you..', [
-        //    this.menuItem('Departing trains', DepartingTripRequestHandler.handlerType),
-        //    this.menuItem('Arriving trains', ArrivingTripRequestHandler.handlerType),
-        //    this.menuItem('Help', HelpRequestHandler.handlerType),
-        //    this.menuItem('Send Feedback', FeedbackRequestHandler.handlerType)
-        //]);
-        
         let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}/img/buttons`;
         let templ = new fb.GenericTemplate();
 
@@ -89,12 +82,12 @@ class MenuRequestHandler extends RequestHandler{
             image_url : `${s3Bucket}/menu_trains.png`,
             buttons : [ 
                 this.menuItem('Arriving', ArrivingTripRequestHandler.handlerType),
-                this.menuItem('Departing', DepartingTripRequestHandler.handlerType),
-                new fb.UrlButton({
-                    title : 'Stations List',
-                    url : `${this.job.app.appRootUrl}/stopview?r=${this.app.otp.routerId}`,
-                    webview_height_ratio : 'tall'
-                })
+                this.menuItem('Departing', DepartingTripRequestHandler.handlerType)
+                //new fb.UrlButton({
+                //    title : 'Stations List',
+                //    url : `${this.job.app.appRootUrl}/stopview?r=${this.app.otp.routerId}`,
+                //    webview_height_ratio : 'tall'
+                //})
             ]
         }));
         
@@ -605,11 +598,9 @@ class TripRequestHandler extends RequestHandler {
 
     stationLookupFailure(txt) {
         this.fails += 1;
-        if (this.fails > 2) {
+        if (this.fails >= 2) {
             this.fails = 0;
-            return this.send(
-                'It looks like you are having a hard time finding a station.'
-            ).then(() => wait(500)).then(() => this.sendEnterStationHelp());
+            return this.sendEnterStationHelp();
         }
         return this.send(txt); 
     }
@@ -649,18 +640,24 @@ class TripRequestHandler extends RequestHandler {
     }
 
     sendEnterStationHelp() {
-        let text = new fb.Text([
-            'Try enter part of the Station name, or use the Send Location button to ',
-            'find a Station near your current location, or another point on the map.'
-        ].join(''));
-        text.quick_replies.push(new fb.LocationQuickReply() );
-        return this.send(text);
+        let templ = new fb.ButtonTemplate('Need help finding a station?', [
+            new fb.UrlButton({
+                title : 'List all Stations',
+                url : `${this.job.app.appRootUrl}/stopview?r=${this.app.otp.routerId}`,
+                webview_height_ratio : 'tall'
+            })
+        ]);
+        return this.send(templ).then(() => wait(500))
+            .then(() => {
+                let text = new fb.Text([
+                    'You can also try to enter part of the Station name, or use the ' +
+                    'Send Location button to find a Station near your current location,' +
+                    ' or another point on the map.'
+                ].join(''));
+                text.quick_replies.push(new fb.LocationQuickReply() );
+                return this.send(text);
+            });
     }
-
-    //sendStopsHelp() {
-    //    let routerId = this.app.otp.routerId;
-    //    let link = `${this.job.app.appRootUrl}/stopview?r=${routerId}`;
-    //}
 
     sendHelp() {
         let text;
