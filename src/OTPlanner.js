@@ -50,6 +50,17 @@ class OTPlanner {
         return this.sendRequest(`otp/routers/${routerId}/index/stops`, params);
     }
 
+    findStopsByRoute(routeId, params, routerId) {
+        routerId = routerId || ld.get(_data.get(this),'routerId');
+        routeId = encodeURIComponent(routeId);
+        return this.sendRequest(`otp/routers/${routerId}/index/routes/${routeId}/stops`, params);
+    }
+
+    findRoutes(params, routerId) {
+        routerId = routerId || ld.get(_data.get(this),'routerId');
+        return this.sendRequest(`otp/routers/${routerId}/index/routes`, params);
+    }
+
     findPlans(params, routerId) {
         routerId = routerId || ld.get(_data.get(this),'routerId');
         return this.sendRequest(`otp/routers/${routerId}/plan`, params);

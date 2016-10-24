@@ -10,4 +10,4 @@
 
 #curl "http://52.2.216.51:8080/otp/routers/bart/plan?fromPlace=1%3A124&toPlace=1%3A105&mode=TRANSIT%2CWALK&maxWalkDistance=804.672&&wheelchair=false&locale=en"
 
-curl "http://otp.mechinate.com:8080/otp/routers/bart/plan?fromPlace=1%3AASHB&toPlace=1%3APOWL&showIntermediateStops=true&ignoreRealtimeUpdates=false"
+#curl "http://otp.mechinate.com:8080/otp/routers/bart/plan?fromPlace=1%3AASHB&toPlace=1%3APOWL&showIntermediateStops=true&ignoreRealtimeUpdates=false"

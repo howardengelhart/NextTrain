@@ -89,10 +89,15 @@ class MenuRequestHandler extends RequestHandler{
             image_url : `${s3Bucket}/menu_trains.png`,
             buttons : [ 
                 this.menuItem('Arriving', ArrivingTripRequestHandler.handlerType),
-                this.menuItem('Departing', DepartingTripRequestHandler.handlerType)
+                this.menuItem('Departing', DepartingTripRequestHandler.handlerType),
+                new fb.UrlButton({
+                    title : 'Stations List',
+                    url : `${this.job.app.appRootUrl}/stopview?r=${this.app.otp.routerId}`,
+                    webview_height_ratio : 'tall'
+                })
             ]
         }));
-
+        
         templ.elements.push(new fb.GenericTemplateElement({
             title : 'Help & Feedback',
             image_url : `${s3Bucket}/menu_help.png`,
@@ -652,6 +657,11 @@ class TripRequestHandler extends RequestHandler {
         return this.send(text);
     }
 
+    //sendStopsHelp() {
+    //    let routerId = this.app.otp.routerId;
+    //    let link = `${this.job.app.appRootUrl}/stopview?r=${routerId}`;
+    //}
+
     sendHelp() {
         let text;
         if (this.state === 'WAIT_DESTINATION') {
@@ -905,7 +915,11 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             };
 
             cfg.buttons = [
-                new fb.UrlButton({ title : 'Details', url : link }),
+                new fb.UrlButton({ 
+                    title : 'Details', 
+                    url : link ,
+                    webview_height_ratio : 'tall'
+                }),
                 new fb.ShareButton()
             ];
 
@@ -1026,7 +1040,11 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             };
 
             cfg.buttons = [
-                new fb.UrlButton({ title : 'Details', url : link }),
+                new fb.UrlButton({ 
+                    title : 'Details', 
+                    url : link ,
+                    webview_height_ratio : 'tall'
+                }),
                 new fb.ShareButton()
             ];
 
