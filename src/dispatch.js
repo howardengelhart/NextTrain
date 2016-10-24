@@ -14,12 +14,13 @@ function textPreprocessor(wit,msg,job) {
     return wit.message(msg.message.text)
     .then(res => {
         log.debug({ witResponse : res },'Handling wit response.');
-        let payload = {};
+        let payload = { };
         for (let ent in res.entities) {
             payload[ent] = ld.get(res,`entities.${ent}[0].value`);
         }
 
-        ld.assign(job, { payloadType : 'text', msg : msg, payload : payload });
+        ld.assign(job, { payloadType : 'text', msg : msg, 
+            payload : payload, witResponse : res });
         return job;
     });
 }

@@ -9,6 +9,7 @@ const moment = require('moment-timezone');
 const compressAndStorePlan = require('./otputil').compressAndStorePlan;
 const fuzzy = require('fuzzy');
 const TODAY = timezone => moment().tz(timezone);
+const wait = (timeout) => ( new Promise( (resolve) => setTimeout(resolve,timeout)) );
 
 class RequestHandler { 
     constructor(job, type) {
@@ -68,7 +69,7 @@ class MenuRequestHandler extends RequestHandler{
     
     menuItem (t,i) {
         return new fb.PostbackButton({ 
-            title : t, payload : JSON.stringify({ type : 'MAIN-MENU', item : i })
+            title : t, payload : JSON.stringify({ handlerType : i })
         });
     }
 
@@ -130,7 +131,7 @@ class MultiLineTextRequestHandler extends RequestHandler {
             text.quick_replies.push(new fb.TextQuickReply( { 
                 title : 'Continue',
                 payload : JSON.stringify({
-                    type : this.type, index : index, endIndex : endIndex 
+                    handlerType : this.type, index : index, endIndex : endIndex 
                 })
             }));
         } else {
@@ -391,7 +392,11 @@ class TripRequestHandler extends RequestHandler {
                     this.log.debug({ stop : stop }, 'ADD STOP BUTTON');
                     text.quick_replies.push(new fb.TextQuickReply( { 
                         title: this.abbrevStopName(stop.name),
-                        payload: JSON.stringify({ type: 'stop', stop: stop })
+                        payload: JSON.stringify({ 
+                            handlerType : this.type,
+                            type: 'stop', 
+                            stop: stop 
+                        })
                     }));
                 }
             }
@@ -435,8 +440,8 @@ class TripRequestHandler extends RequestHandler {
     requestStationSelection(stations) {
         this.log.debug({ stops : stations}, 'exec requestStationSelection');
         let templ = new fb.GenericTemplate();
+        let stopType = this.state === 'WAIT_ORIGIN' ? 'Departing' : 'Arriving';
         let action = stations.length > 1 ? 'Select' : 'Confirm';
-//        let stopType = this.state === 'WAIT_ORIGIN' ? 'Origin' : 'Destination';
         
         for (let station of stations) {
             let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}`;
@@ -446,6 +451,7 @@ class TripRequestHandler extends RequestHandler {
             let stopName = this.abbrevStopName(station.name);
 
             let payload = {
+                handlerType : this.type,
                 type : 'stop',
                 stop : station
             };
@@ -471,7 +477,16 @@ class TripRequestHandler extends RequestHandler {
             templ.elements.push(new fb.GenericTemplateElement(cfg));
         }
 
-        return this.send(templ);
+        return this.send(templ)
+        .then(() => {
+            let phrase = stations.length > 1 ? 'Select your station from the list above' : 
+                'Confirm the station above';
+            let text = new fb.Text(
+                `${phrase} or find another ${stopType} Station.`
+            );
+            text.quick_replies.push(new fb.LocationQuickReply() );
+            return this.send(text);
+        });
     }
 
     getStationFromLocation(coordinates) {
@@ -589,7 +604,7 @@ class TripRequestHandler extends RequestHandler {
             this.fails = 0;
             return this.send(
                 'It looks like you are having a hard time finding a station.'
-            ).then(() => this.onHelp());
+            ).then(() => wait(500)).then(() => this.sendEnterStationHelp());
         }
         return this.send(txt); 
     }
@@ -604,7 +619,7 @@ class TripRequestHandler extends RequestHandler {
             let wantsHelp = this.payload.wantsHelp;
             this.log.info(`doWork for state ${state} helpRequired ${wantsHelp}`);
             if (wantsHelp) {
-                return this.onHelp();
+                return this.sendHelp();
             }
             else
             if (state === 'NEW') {
@@ -628,7 +643,16 @@ class TripRequestHandler extends RequestHandler {
         return doWork().then(() => this.job );
     }
 
-    onHelp() {
+    sendEnterStationHelp() {
+        let text = new fb.Text([
+            'Try enter part of the Station name, or use the Send Location button to ',
+            'find a Station near your current location, or another point on the map.'
+        ].join(''));
+        text.quick_replies.push(new fb.LocationQuickReply() );
+        return this.send(text);
+    }
+
+    sendHelp() {
         let text;
         if (this.state === 'WAIT_DESTINATION') {
             text = new fb.Text([
@@ -652,12 +676,12 @@ class TripRequestHandler extends RequestHandler {
 
         text.quick_replies.push(new fb.LocationQuickReply() );
         text.quick_replies.push(new fb.TextQuickReply( { 
-            title : 'Menu', 
-            payload : JSON.stringify({ type : MenuRequestHandler.handlerType})
+            title : 'Back to Menu', 
+            payload : JSON.stringify({ handlerType : MenuRequestHandler.handlerType})
         }));
         text.quick_replies.push(new fb.TextQuickReply( { 
-            title : 'Help', 
-            payload : JSON.stringify({ type : HelpRequestHandler.handlerType})
+            title : 'More Help', 
+            payload : JSON.stringify({ handlerType : HelpRequestHandler.handlerType})
         }));
 
         return this.send(text);
@@ -691,6 +715,10 @@ class TripRequestHandler extends RequestHandler {
                     this.request.data.origin = this.payload.stop.name;
                 }
             }
+            if (this.noob) {
+                return this.send(`Okay, departing ${this.payload.stop.name}.`)
+                    .then(() => this.evalState());
+            }
             return this.evalState();
         }
         
@@ -717,6 +745,11 @@ class TripRequestHandler extends RequestHandler {
                     this.request.data.destination = this.payload.stop.name;
                 }
             }
+            if (this.noob) {
+                return this.send(`Okay, arriving at ${this.payload.stop.name}.`)
+                    .then(() => this.evalState());
+            }
+            
             return this.evalState();
         }
         
@@ -776,15 +809,15 @@ class TripRequestHandler extends RequestHandler {
         let text = new fb.Text(prompt || 'Anything else?');
         text.quick_replies.push(new fb.TextQuickReply( { 
             title : 'Arriving',
-            payload : JSON.stringify({ type : ArrivingTripRequestHandler.handlerType})
+            payload : JSON.stringify({ handlerType : ArrivingTripRequestHandler.handlerType})
         }));
         text.quick_replies.push(new fb.TextQuickReply( { 
             title : 'Departing',
-            payload : JSON.stringify({ type : DepartingTripRequestHandler.handlerType})
+            payload : JSON.stringify({ handlerType : DepartingTripRequestHandler.handlerType})
         }));
         text.quick_replies.push(new fb.TextQuickReply( { 
             title : 'Menu', 
-            payload : JSON.stringify({ type : MenuRequestHandler.handlerType})
+            payload : JSON.stringify({ handlerType : MenuRequestHandler.handlerType})
         }));
         return this.send(text);
     }
@@ -872,7 +905,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             };
 
             cfg.buttons = [
-                new fb.UrlButton({ title : 'View', url : link }),
+                new fb.UrlButton({ title : 'Details', url : link }),
                 new fb.ShareButton()
             ];
 
@@ -993,7 +1026,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             };
 
             cfg.buttons = [
-                new fb.UrlButton({ title : 'View', url : link }),
+                new fb.UrlButton({ title : 'Details', url : link }),
                 new fb.ShareButton()
             ];
 
@@ -1045,61 +1078,56 @@ class HandlerFactory {
 
         _log.debug(`Locating handler, handlerType=${handlerType}`);
 
-        // If the handlerType was not passed in, first check for high priorit checks.
+        // If the handlerType was not passed in..
         if (!handlerType) {
 
-            // User clicked on a menu item, that takes priority over current request
-            if (ld.get(job,'payload.type') === 'MAIN-MENU') {
-                handlerType = job.payload.item;
-                job.payload = {};
-            } else
-            // User is trying to get help, that takes priority over current request
-            if ((job.payloadType === 'text') && 
-                    (ld.get(job,'payload.intent') === HelpRequestHandler.handlerType)) {
-                if ((currentHandlerType === DepartingTripRequestHandler.handlerType) || 
-                    (currentHandlerType === ArrivingTripRequestHandler.handlerType) ) {
-                    handlerType = currentHandlerType;
-                    job.payload = { wantsHelp : true };
-                } else  {
-                    handlerType = HelpRequestHandler.handlerType;
-                    job.payload = {};
+            if (job.payloadType === 'text') {
+                // If it was text, we look to see if we found the intent.
+                
+                let intent = ld.get(job,'payload.intent');
+                let confidence = ld.get(job,'witResponse.entities.intent[0].confidence',0);
+
+                log.debug(`Confidence in intent (${intent}) is at ${confidence}.`);
+                if (confidence < 0.90) {
+                    log.info(`Confidence (${confidence}) in intent (${intent}) is below 90%.` +
+                        ' Disregarding intent.');
+                    intent = undefined;
                 }
-            } else
-            // User is trying to get the menu, that takes priority over current request
-            if ((job.payloadType === 'text') && 
-                    (ld.get(job,'payload.intent') === MenuRequestHandler.handlerType)) {
-                handlerType = MenuRequestHandler.handlerType;
-                job.payload = {};
-            // If the user is already in the middle of a request, handle that
+
+                if (intent === undefined) {
+                    // It was text not recongized as a command, if we have a current request
+                    // its likely a stop name, so we will continue with existing handler
+                    handlerType = currentHandlerType;
+                } else 
+
+                if (intent === HelpRequestHandler.handlerType) {
+                    // If it was a cry for help and user is currently in a trip handler
+                    // we'll try to give context specific help, otherwise general help.
+                    if ((currentHandlerType === DepartingTripRequestHandler.handlerType) || 
+                        (currentHandlerType === ArrivingTripRequestHandler.handlerType) ) {
+                        handlerType = currentHandlerType;
+                        job.payload = { wantsHelp : true };
+                    } else  {
+                        handlerType = HelpRequestHandler.handlerType;
+                        delete job.user.data.currentRequest;
+                    }
+                } else {
+                    // It was a new command, so we will reset the user and assign this handler
+                    delete job.user.data.currentRequest;
+                    handlerType = intent;
+                }
             } else {
-                handlerType = currentHandlerType;
+                // User clicked on a menu item or quick reply button
+                if (ld.get(job,'payload.type') === WelcomeRequestHandler.handlerType) {
+                    handlerType = WelcomeRequestHandler.handlerType; // remove update started
+                }
+                else if (ld.get(job,'payload.type') === MenuRequestHandler.handlerType) {
+                    handlerType = MenuRequestHandler.handlerType; // remove update menu
+                } else {
+                    handlerType = ld.get(job,'payload.handlerType',currentHandlerType);
+                }
             }
         } 
-
-        // If its not a menu request, menu response, or current request, 
-        // figure out what it is
-        if (!handlerType) {
-            if (job.payloadType === 'text') {
-                handlerType = ld.get(job,'payload.intent');
-
-                // If we can't figure out what the request is, lets guess its
-                // a trip request.
-                if (!handlerType) {
-                    if (job.payload.destination) {
-                        job.payload.intent =
-                            handlerType = DepartingTripRequestHandler.handlerType;
-                    }
-                    else
-                    if (job.payload.origin) {
-                        job.payload.intent =
-                            handlerType = ArrivingTripRequestHandler.handlerType;
-                    }
-                }
-            } else {
-                // The request came from a postback, or quick-reply
-                handlerType = ld.get(job,'payload.type');
-            }
-        }
 
         if (handlerType === MenuRequestHandler.handlerType) {
             _log.info('Create MenuRequestHandler..');
