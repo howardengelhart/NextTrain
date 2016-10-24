@@ -68,6 +68,7 @@ module.exports = (app, messages, users ) => {
     app.facebook.pages.forEach((page) => {
         let appPage = {
             appId : app.appId,
+            S3Bucket : app.S3Bucket,
             appRootUrl : app.appRootUrl,
             stageVars : app.stageVars,
             token : page.token,

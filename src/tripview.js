@@ -1,21 +1,44 @@
 'use strict';
 
 const log       = require('./log');
-const S3        = require('aws-sdk').S3;
+//const S3        = require('aws-sdk').S3;
+const request   = require('request');
 const moment = require('moment-timezone');
 const ld = require('lodash');
+const inspect = require('util').inspect;
 
-function getTrip(params) {
-    return new Promise( (resolve, reject) => {
-        let s3 = new S3();
-   
-        s3.getObject(params, (err,data) => {
-    
+//function getTrip(params) {
+//    return new Promise( (resolve, reject) => {
+//        let s3 = new S3();
+//   
+//        s3.getObject(params, (err,data) => {
+//    
+//            if (err) {
+//                return reject(err);
+//            }
+//
+//            return resolve(JSON.parse(data.Body.toString()));
+//        });
+//    });
+//}
+
+function getTrip(url) {
+    return new Promise((resolve,reject) => {
+        let opts = { json : true };
+        log.info(`Retrieving: ${url}`);
+        request.get(url,opts,(err,resp,body) => {
             if (err) {
                 return reject(err);
             }
 
-            return resolve(JSON.parse(data.Body.toString()));
+            if ((resp.statusCode < 200) || (resp.statusCode > 299)) {
+                return reject( 
+                    new Error('Unexpected statusCode: ' + resp.statusCode + 
+                        (resp.body ? ', ' + inspect(resp.body,{depth:3}) : ''))
+                );
+            }
+
+            return resolve(body);
         });
     });
 }
@@ -42,7 +65,8 @@ exports.handler = (event, context ) => {
     let cdnRoot = `https://cdn.mechinate.com/${appId}`;
     log.info(`appId=${appId}, itineraryId=${itineraryId}, routerId=${routerId}`);
 
-    getTrip({ Bucket : appId, Key : `itineraries/${routerId}/${itineraryId}.json` })
+    //getTrip({ Bucket : appId, Key : `itineraries/${routerId}/${itineraryId}.json` })
+    getTrip(`${cdnRoot}/itineraries/${routerId}/${itineraryId}.json` )
     .then(trip => {
         let tripTime = moment(trip.endTime).diff(moment(trip.startTime), 'minutes');
         let deptTime = displayDate(trip.startTime, trip.timezone);

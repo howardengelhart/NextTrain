@@ -772,8 +772,8 @@ class TripRequestHandler extends RequestHandler {
 
         let otp = this.otp;
         let params = this.getTripParams();
-        let bucket = this.app.appId;
-        let key = `itineraries/${this.app.otp.routerId}`;
+        let bucket = this.app.S3Bucket;
+        let key = `${this.app.appId}/itineraries/${this.app.otp.routerId}`;
 
         this.log.debug({ otpParams : params }, 'calling findPlans');
         return otp.findPlans(params)
