@@ -640,10 +640,12 @@ class TripRequestHandler extends RequestHandler {
     }
 
     sendEnterStationHelp() {
+        let l = `https://cdn.mechinate.com/${this.app.appId}/stops/${this.app.otp.routerId}`;
         let templ = new fb.ButtonTemplate('Need help finding a station?', [
             new fb.UrlButton({
                 title : 'List all Stations',
-                url : `${this.job.app.appRootUrl}/stopview?r=${this.app.otp.routerId}`,
+                url : l,
+                //url : `${this.job.app.appRootUrl}/stopview?r=${this.app.otp.routerId}`,
                 webview_height_ratio : 'tall'
             })
         ]);
@@ -651,8 +653,8 @@ class TripRequestHandler extends RequestHandler {
             .then(() => {
                 let text = new fb.Text([
                     'You can also try to enter part of the Station name, or use the ' +
-                    'Send Location button to find a Station near your current location,' +
-                    ' or another point on the map.'
+                    'Send Location button to find a Station near your current location ' +
+                    'or another point on the map.'
                 ].join(''));
                 text.quick_replies.push(new fb.LocationQuickReply() );
                 return this.send(text);
