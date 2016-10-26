@@ -141,6 +141,7 @@ module.exports = (app, messages, users ) => {
                         delete job.user.data.currentRequest;
                         if ( (handler.type === HandlerFactory.WelcomeRequestHandlerType) ||
                             (handler.type === HandlerFactory.FeedbackRequestHandlerType)  ||
+//                            (handler.type === HandlerFactory.UnknownRequestHandlerType)  ||
                             (handler.type === HandlerFactory.HelpRequestHandlerType) ) {
                             return action.send(job.user.userId,'typing_on',job.app.token)
                                 .then(() => wait(1500))

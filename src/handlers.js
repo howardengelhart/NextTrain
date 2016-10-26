@@ -43,22 +43,6 @@ class RequestHandler {
     }
 }
 
-class UnknownRequestHandler extends RequestHandler {
-    static get handlerType() { return 'unknown'; }
-    
-    constructor(job) {
-        super (job, UnknownRequestHandler.requestType);
-    }
-    
-    work() {
-        return this.send('Sorry, didn\'t quite get that.')
-        .then(() => { 
-            this.job.done = true;
-            return this.job; 
-        });
-    }
-}
-
 class MenuRequestHandler extends RequestHandler{
     static get handlerType() { return 'display_menu'; }
 
@@ -173,6 +157,69 @@ class HelpRequestHandler extends MultiLineTextRequestHandler {
 
         delete job.user.data.currentRequest;
         super(job,HelpRequestHandler.handlerType,speech);
+    }
+}
+
+class MultiChoiceResponseHandler extends RequestHandler {
+    constructor(job, type, lines) {
+        super(job, type );
+        this.lines = lines;
+    }
+    
+    work() {
+        let min = Math.ceil(0), max = Math.floor(this.lines.length - 1);
+        let line = this.lines[(Math.floor(Math.random() * (max - min + 1)) + min)];
+        return this.send(line);
+    }
+}
+
+class HelloRequestHandler extends MultiChoiceResponseHandler {
+    static get handlerType() { return 'hello'; }
+
+    constructor(job) {
+        let userName = ld.get(job,'user.profile.first_name','Friend');
+        let lines = [
+            `Hello ${userName}`,
+            'Hi!',
+            'Greetings',
+            'Whassup?',
+            'Word'
+        ];
+        super (job, HelloRequestHandler.handlerType, lines);
+    }
+}
+
+class ThanksRequestHandler extends MultiChoiceResponseHandler {
+    static get handlerType() { return 'thanks'; }
+
+    constructor(job) {
+        let lines = [
+            'Don\'t mention it.',
+            'You are welcome.',
+            'De nada.',
+            'My pleasure.',
+            'I live to serve.'
+        ];
+        super (job, ThanksRequestHandler.handlerType, lines);
+    }
+}
+
+class UnknownRequestHandler extends MultiChoiceResponseHandler {
+    static get handlerType() { return 'unknown'; }
+
+    constructor(job) {
+        let lines = [
+            'Sorry?',
+            'Come again?',
+            'I didn\'t quite get that.'
+        ];
+        job.done = true;
+        super (job, UnknownRequestHandler.handlerType, lines);
+    }
+
+    work() {
+        return super.work().then(() => wait(500))
+            .then(() => this.send('Try typing "help" or "menu".'));
     }
 }
 
@@ -1130,7 +1177,10 @@ class HandlerFactory {
                     }
                 } else {
                     // It was a new command, so we will reset the user and assign this handler
-                    delete job.user.data.currentRequest;
+                    if ((intent !== HelloRequestHandler.handlerType) &&
+                        (intent !== ThanksRequestHandler.handlerType)) {
+                        delete job.user.data.currentRequest;
+                    }
                     handlerType = intent;
                 }
             } else {
@@ -1166,6 +1216,14 @@ class HandlerFactory {
             _log.info('Create HelpRequestHandler..');
             handler = new HelpRequestHandler(job);
         } else 
+        if (handlerType === ThanksRequestHandler.handlerType) {
+            _log.info('Create ThanksRequestHandler..');
+            handler = new ThanksRequestHandler(job);
+        } else 
+        if (handlerType === HelloRequestHandler.handlerType) {
+            _log.info('Create HelloRequestHandler..');
+            handler = new HelloRequestHandler(job);
+        } else 
         if (handlerType === FeedbackRequestHandler.handlerType) {
             _log.info('Create FeedbackRequestHandler..');
             handler = new FeedbackRequestHandler(job);
@@ -1178,6 +1236,8 @@ class HandlerFactory {
     }
     
     static get UnknownRequestHandlerType() { return UnknownRequestHandler.handlerType; }
+    static get HelloRequestHandlerType() { return HelloRequestHandler.handlerType; }
+    static get ThanksRequestHandlerType() { return ThanksRequestHandler.handlerType; }
     static get WelcomeRequestHandlerType() { return WelcomeRequestHandler.handlerType; }
     static get MenuRequestHandlerType() { return MenuRequestHandler.handlerType; }
     static get HelpRequestHandlerType() { return HelpRequestHandler.handlerType; }
@@ -1189,6 +1249,8 @@ class HandlerFactory {
 }
 
 exports.UnknownRequestHandler = UnknownRequestHandler;
+exports.ThanksRequestHandler = ThanksRequestHandler;
+exports.HelloRequestHandler = HelloRequestHandler;
 exports.WelcomeRequestHandler = WelcomeRequestHandler;
 exports.MenuRequestHandler = MenuRequestHandler;
 exports.HelpRequestHandler = HelpRequestHandler;
