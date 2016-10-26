@@ -1103,11 +1103,11 @@ class HandlerFactory {
                 
                 let intent = ld.get(job,'payload.intent');
                 let confidence = ld.get(job,'witResponse.entities.intent[0].confidence',0);
-
+                let minConfidence = ld.get(job,'app.minConfidence',0.9);
                 log.debug(`Confidence in intent (${intent}) is at ${confidence}.`);
-                if (confidence < 0.90) {
-                    log.info(`Confidence (${confidence}) in intent (${intent}) is below 90%.` +
-                        ' Disregarding intent.');
+                if (confidence < minConfidence) {
+                    log.info(`Confidence (${confidence}) in intent (${intent}) is below ` +
+                        `${minConfidence}. Disregarding intent.`);
                     intent = undefined;
                 }
 

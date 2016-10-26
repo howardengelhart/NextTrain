@@ -71,6 +71,7 @@ module.exports = (app, messages, users ) => {
             S3Bucket : app.S3Bucket,
             appRootUrl : app.appRootUrl,
             stageVars : app.stageVars,
+            minConfidence : app.minConfidence,
             token : page.token,
             pageId : page.id,
             pageName : page.name,
