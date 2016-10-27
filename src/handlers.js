@@ -814,15 +814,9 @@ class TripRequestHandler extends RequestHandler {
     
     onReady() {
         if (this.request.data.originStop.id === this.request.data.destinationStop.id ) {
-            return this.send(
-                'FDR once said "There are many ways of going forward, ' +
-                'but only one way of standing still."'
-            )
-            .then(() => {
-                let org = this.request.data.origin;
-                let dst = this.request.data.destination;
-                return this.send(`"${org}" and "${dst}" appear to be one in the same.`);
-            })
+            let org = this.request.data.originStop.name;
+            return this.send(`You have chosen ${org} for both your departing ` +
+                'and arrivng stations.  Those need to be different.')
             .then(() => this.finishRequest('Try again?') );
         }
 
@@ -1117,6 +1111,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             numItineraries : this.numItineraries,
             showIntermediateStops: true,
             arriveBy : true,
+            ignoreRealtimeUpdates : true,
             date : range.format('MM-DD-YYYY'),
             time : range.format('HH:mm:00')
         };
