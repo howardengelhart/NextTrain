@@ -488,6 +488,9 @@ class TripRequestHandler extends RequestHandler {
         let stopType = this.state === 'WAIT_ORIGIN' ? 'Departing' : 'Arriving';
         let action = stations.length > 1 ? 'Select' : 'Confirm';
         
+//        stations = (stations || []).sort((a,b) =>
+//            ( ( ld.get(a,'dist',99999)  > ld.get(b,'dist',99999 ) ) ? 1 : -1) );
+        
         for (let station of stations) {
             let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}`;
             let routerId = this.app.otp.routerId;
@@ -520,6 +523,10 @@ class TripRequestHandler extends RequestHandler {
 
             this.log.debug({element : cfg }, 'create Element');
             templ.elements.push(new fb.GenericTemplateElement(cfg));
+
+            if (templ.elements.length >= 5) {
+                break;
+            }
         }
 
         return this.send(templ)
