@@ -1,6 +1,6 @@
 {
   "name": "marco",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "description": "Marco Polo, the bot who gets you where you need to go.",
   "main": "index.js",
   "scripts": {
