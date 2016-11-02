@@ -65,8 +65,8 @@ class MenuRequestHandler extends RequestHandler{
             title : 'Find Trains',
             image_url : `${s3Bucket}/menu_trains.png`,
             buttons : [ 
-                this.menuItem('Arriving', ArrivingTripRequestHandler.handlerType),
-                this.menuItem('Departing', DepartingTripRequestHandler.handlerType)
+                this.menuItem('Find Arriving', ArrivingTripRequestHandler.handlerType),
+                this.menuItem('Find Departing', DepartingTripRequestHandler.handlerType)
                 //new fb.UrlButton({
                 //    title : 'Stations List',
                 //    url : `${this.job.app.appRootUrl}/stopview?r=${this.app.otp.routerId}`,
