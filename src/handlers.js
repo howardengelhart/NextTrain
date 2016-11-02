@@ -1093,7 +1093,8 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
 
         this.log.debug(`checking elements length: ${templ.elements.length}`);
         if (templ.elements.length < 1 ) {
-            return this.send('Sorry, but I wasn\'t able to find any trips. Try starting over?');
+            return this.send('Sorry, but I wasn\'t able to find any trips arriving ' +
+                'in the next 2 hours. Try starting over?');
         }
         
         return this.send(templ);
@@ -1101,14 +1102,14 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
 
 
     getTripParams() {
-        let range = moment().tz(this.timezone).add(1,'hours');
+        let range = moment().tz(this.timezone).add(2,'hours');
         let params = {
             fromPlace : this.request.data.originStop.id,
             toPlace: this.request.data.destinationStop.id,
             mode : 'TRANSIT',
             maxWalkDistance:804.672,
             locale:'en',
-            numItineraries : this.numItineraries,
+            numItineraries : 10,// this.numItineraries,
             showIntermediateStops: true,
             arriveBy : true,
             ignoreRealtimeUpdates : true,
