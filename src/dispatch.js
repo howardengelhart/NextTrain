@@ -16,7 +16,11 @@ function textPreprocessor(wit,msg,job) {
         log.debug({ witResponse : res },'Handling wit response.');
         let payload = { };
         for (let ent in res.entities) {
-            payload[ent] = ld.get(res,`entities.${ent}[0].value`);
+            if (ent === 'datetime') {
+                payload[ent] = ld.get(res,`entities.${ent}[0].values[0]`);
+            } else {
+                payload[ent] = ld.get(res,`entities.${ent}[0].value`);
+            }
         }
 
         ld.assign(job, { payloadType : 'text', msg : msg, 

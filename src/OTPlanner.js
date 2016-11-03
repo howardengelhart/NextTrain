@@ -44,6 +44,11 @@ class OTPlanner {
             });
         });
     }
+
+    getStop(stopId, routerId) {
+        routerId = routerId || ld.get(_data.get(this),'routerId');
+        return this.sendRequest(`otp/routers/${routerId}/index/stops/${stopId}` );
+    }
     
     findStops(params, routerId) {
         routerId = routerId || ld.get(_data.get(this),'routerId');

@@ -266,7 +266,6 @@ class FeedbackRequestHandler extends RequestHandler {
             state : 'NEW',
             data : this.payload
         };
-
         return this.send('Tell me what\'s on your mind.')
             .then(() => {
                 this.state = 'WAIT_RESPONSE';
@@ -346,7 +345,7 @@ class TripRequestHandler extends RequestHandler {
     }
     
     get numItineraries() {
-        return ld.get(this,'app.stageVars.numItineraries',3);
+        return ld.get(this,'app.stageVars.numItineraries',5);
     }
 
     get request() {
@@ -750,12 +749,85 @@ class TripRequestHandler extends RequestHandler {
         return this.send(text);
     }
 
+
+    findStopMatch(stopName) {
+        let history = this.user.data.tripHistory || [];
+        let matchName = ld.lowerCase(stopName);
+        let matches = {};
+
+//        this.log.debug({history : history},'TRIP HISTORY');
+
+        for (let trip of history) {
+            if (ld.lowerCase(trip.data.destination) === matchName) {
+                let stop = trip.data.destinationStop;
+                if (stop) {
+                    if (matches[stop.id]) {
+                        matches[stop.id].count += 1;
+                    } else {
+                        matches[stop.id] = { stop : stop, count : 1 };
+                    }
+                }
+            }
+
+            if (ld.lowerCase(trip.data.origin) === matchName) {
+                let stop = trip.data.originStop;
+                if (stop) {
+                    if (matches[stop.id]) {
+                        matches[stop.id].count += 1;
+                    } else {
+                        matches[stop.id] = { stop : stop, count : 1 };
+                    }
+                }
+            }
+        }
+
+        let stops = ld.values(matches).sort((a,b) => ( a.count > b.count ? -1 : 1));
+       
+        this.log.debug({ found : stops}, `FOUND STOPS FOR ${matchName}`);
+        if (stops[0] && stops[0].count >= 2) {
+            this.log.debug({stop : stops[0].stop},'CHECKING STOP');
+            return this.otp.getStop(stops[0].stop.id);
+        } 
+
+        return Promise.resolve();
+    }
+
+    quickMatchStops() {
+        let data = this.request.data;
+        return Promise.all([
+            this.findStopMatch(data.origin)
+            .then(stop => {
+                if (stop) {
+                    this.log.debug({stop : stop}, 'FOUND ORIGIN STOP');
+                    data.originStop = stop;
+                } else {
+                    this.log.debug(`Unable to locate a stop match for ${data.origin}`);
+                }
+            }),
+            this.findStopMatch(data.destination)
+            .then(stop => {
+                if (stop) {
+                    this.log.debug({stop : stop}, 'FOUND DESTINATION STOP');
+                    data.destinationStop = stop;
+                } else {
+                    this.log.debug(`Unable to locate a stop match for ${data.destination}`);
+                }
+            })
+        ])
+        .then(() => {
+            this.log.info({ rqsData : data}, 'Quick Stop Check DONE');
+        })
+        .catch(e => {
+            this.log.error(e, 'Quick Stop Check FAILED');
+        });
+    }
+
     onNew() {
         this.log.debug('exec onNew');
         let rqs = { type : this.type, state : 'NEW' };
         rqs.data = this.payload;
         this.user.data.currentRequest = rqs;
-        return this.evalState();
+        return this.quickMatchStops().then(() => this.evalState());
     }
     
     onWaitOrigin() {
@@ -981,14 +1053,40 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     }
     
     getTripParams() {
+        let data = this.request.data;
+        let range = moment().tz(this.timezone);
+
+        if (data.datetime) {
+            this.log.debug({ dateTime : data.datetime}, 'REQUEST DATETIME CHECK');
+            if (data.datetime.type === 'interval') {
+                if (data.datetime.from) {
+                    if (data.datetime.from.grain === 'day') {
+                        range = moment(data.datetime.from.value).tz(this.timezone).add(4, 'hours');
+                    } else {
+                        range = moment(data.datetime.from.value).tz(this.timezone);
+                    }
+                }
+            }
+            else 
+            if (data.datetime.type === 'value') {
+                if (data.datetime.grain === 'day') {
+                    range = moment(data.datetime.value).tz(this.timezone).add(4,'hours');
+                } else {
+                    range = moment(data.datetime.value).tz(this.timezone);
+                }
+            }
+        }
         return {
-            fromPlace : this.request.data.originStop.id,
-            toPlace: this.request.data.destinationStop.id,
+            fromPlace : data.originStop.id,
+            toPlace: data.destinationStop.id,
             mode : 'TRANSIT',
+            ignoreRealtimeUpdates : true,
             maxWalkDistance:804.672,
             locale:'en',
             numItineraries : this.numItineraries,
-            showIntermediateStops: true
+            showIntermediateStops: true,
+            date : range.format('MM-DD-YYYY'),
+            time : range.format('HH:mm:00')
         };
     }
 }
@@ -1064,7 +1162,39 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
     sendTrips(plans ) {
         this.log.debug('exec sendTrips');
         let templ = new fb.GenericTemplate();
-        let now = moment().tz(this.timezone);
+        let data = this.request.data;
+        let rangeStart = moment().tz(this.timezone); 
+        let rangeEnd = moment().tz(this.timezone).add(2,'hours');
+
+        if (data.datetime) {
+            if (data.datetime.type === 'interval') {
+                if (data.datetime.to) {
+                    if (data.datetime.to.grain === 'hour') {
+                        rangeEnd = moment(data.datetime.to.value).tz(this.timezone)
+                            .subtract(1, 'hours');
+                    } else 
+                    if (data.datetime.to.grain === 'minute') {
+                        rangeEnd = moment(data.datetime.to.value).tz(this.timezone)
+                            .subtract(1, 'minute');
+                    } else {
+                        rangeEnd = moment(data.datetime.to.value).tz(this.timezone);
+                    }
+                }
+                
+                if (data.datetime.from) {
+                    rangeStart = moment(data.datetime.from.value).tz(this.timezone);
+                }
+            }
+            else 
+            if (data.datetime.type === 'value') {
+                if (data.datetime.grain === 'hour') {
+                    rangeEnd = moment(data.datetime.to.value).tz(this.timezone)
+                        .subtract(1, 'hours');
+                } else {
+                    rangeEnd = moment(data.datetime.to.value).tz(this.timezone);
+                }
+            }
+        }
 
         plans = (plans || []).sort((a,b) => ( a.itinerary.endTime > b.itinerary.endTime ));
         for (let plan of plans) {
@@ -1072,8 +1202,9 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             let endTime = this.displayDate(i.endTime);
             let imgLink = this.dateToClockUrl(i.endTime);
 
-            if (moment(i.endTime).tz(this.timezone).isBefore(now)) {
-                this.log.debug(`trip has endTime (${endTime}) < now, skip`);
+            if (moment(i.endTime).tz(this.timezone).isBefore(rangeStart)) {
+                this.log.debug(`trip has endTime (${endTime}) < ` +
+                    `${this.displayDate(rangeStart)}, skip`);
                 continue;
             }
 
@@ -1100,8 +1231,10 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
 
         this.log.debug(`checking elements length: ${templ.elements.length}`);
         if (templ.elements.length < 1 ) {
+            let errRange = `between ${this.displayDate(rangeStart)} and ` +
+                ` ${this.displayDate(rangeEnd)}`;
             return this.send('Sorry, but I wasn\'t able to find any trips arriving ' +
-                'in the next 2 hours. Try starting over?');
+                `${errRange}. Try starting over?`);
         }
         
         return this.send(templ);
@@ -1110,9 +1243,37 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
 
     getTripParams() {
         let range = moment().tz(this.timezone).add(2,'hours');
+        let data = this.request.data;
+        
+        if (data.datetime) {
+            this.log.debug({ dateTime : data.datetime}, 'REQUEST DATETIME CHECK');
+            if (data.datetime.type === 'interval') {
+                if (data.datetime.to) {
+                    if (data.datetime.to.grain === 'hour') {
+                        range = moment(data.datetime.to.value).tz(this.timezone)
+                            .subtract(1, 'hours');
+                    } else 
+                    if (data.datetime.to.grain === 'minute') {
+                        range = moment(data.datetime.to.value).tz(this.timezone)
+                            .subtract(1, 'minute');
+                    } else {
+                        range = moment(data.datetime.to.value).tz(this.timezone);
+                    }
+                }
+            }
+            else 
+            if (data.datetime.type === 'value') {
+                if (data.datetime.grain === 'hour') {
+                    range = moment(data.datetime.to.value).tz(this.timezone)
+                        .subtract(1, 'hours');
+                } else {
+                    range = moment(data.datetime.to.value).tz(this.timezone);
+                }
+            }
+        }
         let params = {
-            fromPlace : this.request.data.originStop.id,
-            toPlace: this.request.data.destinationStop.id,
+            fromPlace : data.originStop.id,
+            toPlace: data.destinationStop.id,
             mode : 'TRANSIT',
             maxWalkDistance:804.672,
             locale:'en',
