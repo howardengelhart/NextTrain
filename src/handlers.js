@@ -345,7 +345,7 @@ class TripRequestHandler extends RequestHandler {
     }
     
     get numItineraries() {
-        return ld.get(this,'app.stageVars.numItineraries',5);
+        return ld.get(this,'app.numItineraries',3);
     }
 
     get request() {
@@ -929,7 +929,7 @@ class TripRequestHandler extends RequestHandler {
         this.state = 'DONE';
         let history = this.user.data.tripHistory || [];
         history.unshift(this.request);
-        while (history.length > 5) {
+        while (history.length > 10) {
             history.pop();
         }
         this.user.data.tripHistory = history;
@@ -1163,8 +1163,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
         this.log.debug('exec sendTrips');
         let templ = new fb.GenericTemplate();
         let data = this.request.data;
-        let rangeStart = moment().tz(this.timezone); 
-        let rangeEnd = moment().tz(this.timezone).add(2,'hours');
+        let rangeStart, rangeEnd, planSort;
 
         if (data.datetime) {
             if (data.datetime.type === 'interval') {
@@ -1196,9 +1195,22 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             }
         }
 
-        plans = (plans || []).sort((a,b) => ( a.itinerary.endTime > b.itinerary.endTime ));
+        if (!rangeEnd) {
+            rangeEnd = moment().tz(this.timezone).add(1,'hours');
+            planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime ? 1 : -1 );
+        } else {
+            planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime  ? -1 : 1 );
+        }
+        
+        if (!rangeStart) {
+            rangeStart = rangeEnd.subtract(1,'hours');
+        }
+
+
+        plans = (plans || []).sort(planSort);
         for (let plan of plans) {
             let i = plan.itinerary;
+            let startTime = this.displayDate(i.startTime);
             let endTime = this.displayDate(i.endTime);
             let imgLink = this.dateToClockUrl(i.endTime);
 
@@ -1213,6 +1225,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
             let cfg = {
                 title : `Arrives ${this.abbrevStopName(i.to)} - ${endTime}`,
+                subtitle : `Departs ${this.abbrevStopName(i.from)} - ${startTime}`,
                 image_url : imgLink
 //                title : `Scheduled to arrive in ${arrivesIn} (${this.displayDate(i.endTime)})`
             };
@@ -1242,7 +1255,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
 
 
     getTripParams() {
-        let range = moment().tz(this.timezone).add(2,'hours');
+        let range = moment().tz(this.timezone).add(1,'hours');
         let data = this.request.data;
         
         if (data.datetime) {
@@ -1277,7 +1290,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             mode : 'TRANSIT',
             maxWalkDistance:804.672,
             locale:'en',
-            numItineraries : 10,// this.numItineraries,
+            numItineraries : this.numItineraries,
             showIntermediateStops: true,
             arriveBy : true,
             ignoreRealtimeUpdates : true,
