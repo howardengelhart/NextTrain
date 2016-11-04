@@ -1017,9 +1017,62 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     sendTrips(plans ) {
         this.log.debug('exec sendTrips');
         let templ = new fb.GenericTemplate();
+        let data = this.request.data;
+        let rangeStart, rangeEnd;
+        let planSort = (a,b) => ( a.itinerary.startTime < b.itinerary.startTime ? -1 : 1 );
 
+        if (data.datetime) {
+            if (data.datetime.type === 'interval') {
+                if (data.datetime.from) {
+                    if (data.datetime.from.grain === 'day') {
+                        rangeStart = moment(data.datetime.from.value).tz(this.timezone)
+                            .add(4, 'hours');
+                    } else {
+                        rangeStart = moment(data.datetime.from.value).tz(this.timezone);
+                    }
+                }
+                
+                if (data.datetime.to) {
+                    if (data.datetime.to.grain === 'hour') {
+                        rangeEnd = moment(data.datetime.to.value).tz(this.timezone)
+                            .subtract(1, 'hours');
+                    } else 
+                    if (data.datetime.to.grain === 'minute') {
+                        rangeEnd = moment(data.datetime.to.value).tz(this.timezone)
+                            .subtract(1, 'minute');
+                    } else {
+                        rangeEnd = moment(data.datetime.to.value).tz(this.timezone);
+                    }
+                }
+            }
+            else 
+            if (data.datetime.type === 'value') {
+                if (data.datetime.grain === 'day') {
+                    rangeStart = moment(data.datetime.value).tz(this.timezone).add(4,'hours');
+                } else {
+                    rangeStart = moment(data.datetime.value).tz(this.timezone);
+                }
+            }
+        }
+        
+        if (!rangeStart) {
+            rangeStart = moment().tz(this.timezone);
+        }
+        
+        if (!rangeEnd) {
+            rangeEnd = rangeStart.add(2,'hours');
+        }
+
+        plans = (plans || []).sort(planSort);
         for (let plan of plans) {
             let i = plan.itinerary;
+
+            if (moment(i.startTime).tz(this.timezone).isAfter(rangeEnd)) {
+                this.log.debug(`trip has startTime (${this.displayDate(i.startTime)}) > ` +
+                    `${this.displayDate(rangeEnd)}, skip`);
+                continue;
+            }
+
             let routerId = this.app.otp.routerId;
             let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
             let imgLink = this.dateToClockUrl(i.startTime);
@@ -1043,10 +1096,17 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             ];
 
             templ.elements.push(new fb.GenericTemplateElement(cfg));
+
+            if (templ.elements.length >= this.numItineraries) {
+                break;
+            }
         }
         
         if (templ.elements.length < 1 ) {
-            return this.send('Sorry, but I wasn\'t able to find any trips. Try starting over?');
+            let errRange = `between ${this.displayDate(rangeStart)} and ` +
+                ` ${this.displayDate(rangeEnd)}`;
+            return this.send('Sorry, but I wasn\'t able to find any trips departing ' +
+                `${errRange}. Try starting over?`);
         }
 
         return this.send(templ);
@@ -1064,6 +1124,16 @@ class DepartingTripRequestHandler extends TripRequestHandler {
                         range = moment(data.datetime.from.value).tz(this.timezone).add(4, 'hours');
                     } else {
                         range = moment(data.datetime.from.value).tz(this.timezone);
+                    }
+                } 
+                else 
+                if (data.datetime.to) {
+                    if (data.datetime.from.grain === 'day') {
+                        range = moment(data.datetime.to.value).tz(this.timezone)
+                            .subtract(4, 'hours');
+                    } else {
+                        range = moment(data.datetime.to.value).tz(this.timezone)
+                            .subtract(1, 'hours');
                     }
                 }
             }
@@ -1083,7 +1153,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             ignoreRealtimeUpdates : true,
             maxWalkDistance:804.672,
             locale:'en',
-            numItineraries : this.numItineraries,
+            numItineraries : this.numItineraries + 2,
             showIntermediateStops: true,
             date : range.format('MM-DD-YYYY'),
             time : range.format('HH:mm:00')
@@ -1163,7 +1233,8 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
         this.log.debug('exec sendTrips');
         let templ = new fb.GenericTemplate();
         let data = this.request.data;
-        let rangeStart, rangeEnd, planSort;
+        let rangeStart, rangeEnd;
+        let planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime ? 1 : -1 );
 
         if (data.datetime) {
             if (data.datetime.type === 'interval') {
@@ -1197,9 +1268,9 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
 
         if (!rangeEnd) {
             rangeEnd = moment().tz(this.timezone).add(1,'hours');
-            planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime ? 1 : -1 );
-        } else {
-            planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime  ? -1 : 1 );
+//            planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime ? 1 : -1 );
+//        } else {
+//            planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime  ? -1 : 1 );
         }
         
         if (!rangeStart) {
@@ -1240,6 +1311,10 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             ];
 
             templ.elements.push(new fb.GenericTemplateElement(cfg));
+            
+            if (templ.elements.length >= this.numItineraries) {
+                break;
+            }
         }
 
         this.log.debug(`checking elements length: ${templ.elements.length}`);
