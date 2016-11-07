@@ -89,41 +89,45 @@ describe('OTPlanner', () => {
             spyOn(p,'sendRequest');
         });
 
-        it('findStops uses the default Router if none passed', () => {
-            p.findStops();
-            expect(p.sendRequest)
-                .toHaveBeenCalledWith('otp/routers/default/index/stops',undefined);
-        });
+        describe('findStops', () => {
+            it('uses the default Router if none passed', () => {
+                p.findStops();
+                expect(p.sendRequest)
+                    .toHaveBeenCalledWith('otp/routers/default/index/stops',undefined);
+            });
+            
+            it('uses the default Router and params if passed', () => {
+                p.findStops({ stopId : 'someid' });
+                expect(p.sendRequest)
+                    .toHaveBeenCalledWith('otp/routers/default/index/stops',{stopId:'someid'});
+            });
+
+            it('uses the specified Router and params if passed', () => {
+                p.findStops({ stopId : 'someid' }, 'njt');
+                expect(p.sendRequest)
+                    .toHaveBeenCalledWith('otp/routers/njt/index/stops',{ stopId : 'someid' });
+            });
         
-        it('findPlans uses the default Router if none passed', () => {
-            p.findPlans();
-            expect(p.sendRequest)
-                .toHaveBeenCalledWith('otp/routers/default/plan',undefined);
         });
+
+        describe('findPlans', () => {
+            it('uses the default Router if none passed', () => {
+                p.findPlans();
+                expect(p.sendRequest)
+                    .toHaveBeenCalledWith('otp/routers/default/plan',undefined);
+            });
+
+            it('uses the default Router and params if passed', () => {
+                p.findPlans({ stopId : 'someid' });
+                expect(p.sendRequest)
+                    .toHaveBeenCalledWith('otp/routers/default/plan',{ stopId : 'someid' });
+            });
         
-        it('findStops uses the default Router and params if passed', () => {
-            p.findStops({ stopId : 'someid' });
-            expect(p.sendRequest)
-                .toHaveBeenCalledWith('otp/routers/default/index/stops',{ stopId : 'someid' });
-        });
-        
-        it('findPlans uses the default Router and params if passed', () => {
-            p.findPlans({ stopId : 'someid' });
-            expect(p.sendRequest)
-                .toHaveBeenCalledWith('otp/routers/default/plan',{ stopId : 'someid' });
-        });
-        
-        it('findStops uses the specified Router and params if passed', () => {
-            p.findStops({ stopId : 'someid' }, 'njt');
-            expect(p.sendRequest)
-                .toHaveBeenCalledWith('otp/routers/njt/index/stops',{ stopId : 'someid' });
-        });
-        
-        it('findPlans uses the specified Router and params if passed', () => {
-            p.findPlans({ stopId : 'someid' }, 'njt');
-            expect(p.sendRequest)
-                .toHaveBeenCalledWith('otp/routers/njt/plan',{ stopId : 'someid' });
+            it('uses the specified Router and params if passed', () => {
+                p.findPlans({ stopId : 'someid' }, 'njt');
+                expect(p.sendRequest)
+                    .toHaveBeenCalledWith('otp/routers/njt/plan',{ stopId : 'someid' });
+            });
         });
     });
 });
-
