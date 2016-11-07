@@ -136,7 +136,6 @@ exports.handler = (event, context ) => {
         }
 
         app.appRootUrl = appRootUrl;
-        app.stageVars  = ld.get(event,'stage-variables',{});
 
         log.info(`Execute handler for method ${method}`);
         return handler(event,context,app);

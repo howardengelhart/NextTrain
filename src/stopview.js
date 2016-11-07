@@ -5,7 +5,6 @@ const log       = require('./log');
 const OTPlanner = require('./OTPlanner');
 
 exports.handler = (event, context ) => {
-    let stageVars  = ld.get(event,'stage-variables',{});
     let stage = ld.get(event,'context.stage','');
     let appId  = ld.get(event,'params.path.app','');
     let routerId = event.params.querystring.r;
@@ -27,7 +26,7 @@ exports.handler = (event, context ) => {
         pathname : pathParts.join('/')
     });
     
-    log.debug({ stageVars : stageVars, appRootUrl : appRootUrl}, 'Handler called.');
+    log.debug({ appRootUrl : appRootUrl}, 'Handler called.');
     
     let otp = new OTPlanner({ hostname : 'otp.mechinate.com:8080', routerId : routerId });
     return otp.findRoutes() 

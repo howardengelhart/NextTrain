@@ -67,11 +67,6 @@ class MenuRequestHandler extends RequestHandler{
             buttons : [ 
                 this.menuItem('Find Arriving', ArrivingTripRequestHandler.handlerType),
                 this.menuItem('Find Departing', DepartingTripRequestHandler.handlerType)
-                //new fb.UrlButton({
-                //    title : 'Stations List',
-                //    url : `${this.job.app.appRootUrl}/stopview?r=${this.app.otp.routerId}`,
-                //    webview_height_ratio : 'tall'
-                //})
             ]
         }));
         
