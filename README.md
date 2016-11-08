@@ -46,7 +46,7 @@ The stopview lambda is used to provide BOT users with a full list of stops.  The
 Used to store application configuration and user profile / state info.
 
 #### applications
-A record exists in the applications table for each *Next Train* Facebook Page subscription.  The application records contain configuration along with tokens and keys used to communicate back to Facebook and other 3rd party services.   The BOT only reads from this table, no updates.
+A record exists in the applications table for each corresponding Facebook Application.  Within the application configuration there is a sub-document for each *Next Train* Facebook Page subscription.  The application records, or page-specific sub-docs contain configuration along with tokens and keys used to communicate back to Facebook and other 3rd party services.   Adding an additional transit system bot requires creating a new Facebook Page, configuring the Facebook app to subscribe to that new page, and then adding a sub-document to the corresponding DynamoDb application for the new page.
 
 #### users
 The users table is used to hold basic profile details (name, profile pic, etc) about the Messenger users, along with their trip history, and the state of their current request.  The bot has read-write access to this table.
