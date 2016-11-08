@@ -10,6 +10,9 @@ const ld = require('lodash');
 
 const wait = (timeout) => ( new Promise( (resolve) => setTimeout(resolve,timeout)) );
 
+/**
+ * Text messages are sent to WIT for analysis
+ **/
 function textPreprocessor(wit,msg,job) {
     return wit.message(msg.message.text)
     .then(res => {
@@ -29,6 +32,10 @@ function textPreprocessor(wit,msg,job) {
     });
 }
 
+/**
+ * Handles structured data messages sent from Messenger.  These would be generated
+ * by users clicking the bot's Buttons or Menu options from the Messenger app.
+ **/
 function dataPreprocessor(msg, job) {
     return new Promise((resolve) => {
         let payload, type = 'unknown';
@@ -69,6 +76,8 @@ module.exports = (app, messages, users ) => {
     let action = new fb.SenderAction();
     let userProfile = new fb.UserProfile();
 
+    // Merge Page (transit-system) specific configuration with the general
+    // app configuration.
     app.facebook.pages.forEach((page) => {
         let appPage = {
             appId : app.appId,
@@ -97,6 +106,7 @@ module.exports = (app, messages, users ) => {
 
     return Promise.all((messages || []).map( (msg) => {
         log.debug({ message : msg }, 'Dispatching message.' );
+        // We put all of the request and related configuration data into a Job object.
         let job = {
             app : pages[msg.recipient.id],
             user : users[msg.sender.id]
@@ -105,8 +115,11 @@ module.exports = (app, messages, users ) => {
             job.user = new User({ appId : app.appId, userId : msg.sender.id });
         }
 
+        // sending typing_on makes messenger show the user we're doing something..
         return action.send(job.user.userId,'typing_on',job.app.token)
         .then(() => {
+            // If we don't have profile info for this user, or its old, we use
+            // Facebook's user profile api to look it up.
             if ((!ld.get(job,'user.profile')) || 
                 ((Date.now() - ld.get(job,'user.profile.profile_date',0)) > 900000) ) {
                 log.debug(`Lookup profile for user ${job.user.userId}`);
@@ -117,6 +130,7 @@ module.exports = (app, messages, users ) => {
                     return job;
                 })
                 .catch(err => {
+                    // Errors here are not fatal.
                     log.warn({err : err.message}, 'USER PROFILE LOOKUP FAIL');
                     return job;
                 });
@@ -126,6 +140,8 @@ module.exports = (app, messages, users ) => {
         .then(() => {
             let preProcessor;
 
+            // Pick a pre-processor based on the message.  Pre-processor's extract additional
+            // data from the request, or via Wit, and attach it to the Job.
             if (msg.message && msg.message.text && (!msg.message.quick_reply)) {
                 preProcessor = textPreprocessor.bind({}, wit, msg, job);
             } else {
@@ -136,16 +152,20 @@ module.exports = (app, messages, users ) => {
             return preProcessor();
         })
         .then((job) => {
+            // Most of the real work is done in Handlers.  CreateHandler looks at the job
+            // to instantiate the right handler.
             let handler = HandlerFactory.CreateHandler(job);
             log.debug('Call handler.handle()');
+
+            // Dot the actual handling..
             return handler.handle()
                 .then(() => {
+                    // TODO look at moving this logic out of here..
                     if (job.done && (handler.type !== HandlerFactory.MenuRequestHandlerType)) {
                         log.info('currentRequest is DONE, reset user for next request.');
                         delete job.user.data.currentRequest;
                         if ( (handler.type === HandlerFactory.WelcomeRequestHandlerType) ||
                             (handler.type === HandlerFactory.FeedbackRequestHandlerType)  ||
-//                            (handler.type === HandlerFactory.UnknownRequestHandlerType)  ||
                             (handler.type === HandlerFactory.HelpRequestHandlerType) ) {
                             return action.send(job.user.userId,'typing_on',job.app.token)
                                 .then(() => wait(1500))
@@ -158,6 +178,7 @@ module.exports = (app, messages, users ) => {
                     return job;
                 });
         })
+        // make sure messenger doesn't look like we're still working the request..
         .then(job => action.send(job.user.userId,'typing_off',job.app.token).then(() => job) );
     }))
     .then( (jobs) => {

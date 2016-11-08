@@ -11,6 +11,10 @@ const fuzzy = require('fuzzy');
 const TODAY = timezone => moment().tz(timezone);
 const wait = (timeout) => ( new Promise( (resolve) => setTimeout(resolve,timeout)) );
 
+/**
+ * Base class for all handler types.  Mostly performs setup, provides handle method
+ * used by the dispatch function.
+ **/
 class RequestHandler { 
     constructor(job, type) {
         let user = { id : job.user.userId };
@@ -43,6 +47,9 @@ class RequestHandler {
     }
 }
 
+/**
+ * Handler for displaying the main Menu to messenger users.
+ **/
 class MenuRequestHandler extends RequestHandler{
     static get handlerType() { return 'display_menu'; }
 
@@ -87,6 +94,11 @@ class MenuRequestHandler extends RequestHandler{
     }
 }
 
+/**
+ * Base class used to present multiple lines of text to user. Will provide a 
+ * "continue" button to allow user to cycle through the text rather than getting
+ * it all at once, or spacing it via a timer (which adds to our lambda cost).
+ **/
 class MultiLineTextRequestHandler extends RequestHandler {
     constructor(job, type, lines) {
         super(job, type );
@@ -119,6 +131,10 @@ class MultiLineTextRequestHandler extends RequestHandler {
     
 }
 
+/**
+ * Text sent to the user when the first access the bot.  This is pulled from the
+ * app / page configuration.
+ **/
 class WelcomeRequestHandler extends MultiLineTextRequestHandler {
     static get handlerType() { return 'welcome'; }
     
@@ -132,6 +148,9 @@ class WelcomeRequestHandler extends MultiLineTextRequestHandler {
     }
 }
 
+/**
+ * Help information.
+ **/
 class HelpRequestHandler extends MultiLineTextRequestHandler {
     static get handlerType() { return 'help'; }
 
@@ -155,6 +174,10 @@ class HelpRequestHandler extends MultiLineTextRequestHandler {
     }
 }
 
+/**
+ * A base class used to randomly select response text from a list of pre-canned
+ * responses. Used for responding to hello's and thank's.
+ **/
 class MultiChoiceResponseHandler extends RequestHandler {
     constructor(job, type, lines) {
         super(job, type );
@@ -168,6 +191,9 @@ class MultiChoiceResponseHandler extends RequestHandler {
     }
 }
 
+/**
+ * Nice to respond to our users greetings. Consider moving replies to config.
+ **/
 class HelloRequestHandler extends MultiChoiceResponseHandler {
     static get handlerType() { return 'hello'; }
 
@@ -184,6 +210,9 @@ class HelloRequestHandler extends MultiChoiceResponseHandler {
     }
 }
 
+/**
+ * Nice replies to expressions of gratitude. Consider moving replies to config.
+ **/
 class ThanksRequestHandler extends MultiChoiceResponseHandler {
     static get handlerType() { return 'thanks'; }
 
@@ -199,6 +228,9 @@ class ThanksRequestHandler extends MultiChoiceResponseHandler {
     }
 }
 
+/**
+ * What to say when we can't figure out what the user is asking for.
+ **/
 class UnknownRequestHandler extends MultiChoiceResponseHandler {
     static get handlerType() { return 'unknown'; }
 
@@ -218,6 +250,9 @@ class UnknownRequestHandler extends MultiChoiceResponseHandler {
     }
 }
 
+/**
+ * Rudimentary way of collecting user feedback.. outside what Messenger provides.
+ **/
 class FeedbackRequestHandler extends RequestHandler {
     static get handlerType() { return 'feedback'; }
 
@@ -321,6 +356,14 @@ class FeedbackRequestHandler extends RequestHandler {
     }
 }
 
+/**
+ * This is the main class for handling user requests to get trip info.  The bot defines
+ * two types of trips, Departing and Arriving.  Those are subclassed off of this base class
+ * handler.  All trips involve Origins and Destinations.  The main difference is that
+ * Departing trips will present users with Departure times, Arriving trips will present
+ * users with Arrival times.  Figuring out which type of trip info the user wants can
+ * get tricky, but that is mainly tackled via traiing our Wit.ai application.
+ **/
 class TripRequestHandler extends RequestHandler {
     constructor(job, type) {
         super (job, type);
@@ -948,6 +991,9 @@ class TripRequestHandler extends RequestHandler {
 
 }
 
+/** 
+ * Specific adjustments based on a Departing Trip context.
+ **/
 class DepartingTripRequestHandler extends TripRequestHandler {
     static get handlerType() { return 'schedule_departing'; }
 
@@ -1145,7 +1191,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
             fromPlace : data.originStop.id,
             toPlace: data.destinationStop.id,
             mode : 'TRANSIT',
-            ignoreRealtimeUpdates : true,
+            ignoreRealtimeUpdates : true, //ignoring for now due to otp flakiness
             maxWalkDistance:804.672,
             locale:'en',
             numItineraries : this.numItineraries + 2,
@@ -1156,6 +1202,9 @@ class DepartingTripRequestHandler extends TripRequestHandler {
     }
 }
 
+/**
+ * Specific adjustments required for Arriving Trips.
+ **/
 class ArrivingTripRequestHandler extends TripRequestHandler {
     static get handlerType() { return 'schedule_arriving'; }
 
@@ -1371,6 +1420,9 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
     }
 }
 
+/**
+ * Logic for figuring out which handler we need for a given job.
+ **/
 class HandlerFactory {
 
     static CreateHandler(job, handlerType) {
