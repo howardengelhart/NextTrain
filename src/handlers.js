@@ -510,11 +510,11 @@ class TripRequestHandler extends RequestHandler {
         return moment(dt).tz(this.timezone).format(format);
     }
 
-    dateToClockUrl(dt) {
-        let s3Bucket = `https://s3.amazonaws.com/${this.job.app.appId}/img/clocks`;
+    dateToClockUrl(dt,direction) {
+        let base = `https://cdn.mechinate.com/${this.job.app.appId}/img/clocks/v2`;
         let fname = moment(dt).tz(this.timezone)
             .format('d_A_hh_mm').replace('AM','0').replace('PM','1');
-        return `${s3Bucket}/${fname}.png`;
+        return `${base}/${direction}_${fname}.png`;
     }
     
     //Optional alternative for formatting station choices
@@ -1116,7 +1116,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
 
             let routerId = this.app.otp.routerId;
             let link = `${this.job.app.appRootUrl}/tripview?r=${routerId}&i=${plan.itineraryId}`;
-            let imgLink = this.dateToClockUrl(i.startTime);
+            let imgLink = this.dateToClockUrl(i.startTime,'departing');
             this.log.debug(`trip link: ${link}`);
             let cfg = {
                 title : `Departs ${this.abbrevStopName(i.from)} - ` +
@@ -1327,7 +1327,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             let i = plan.itinerary;
             let startTime = this.displayDate(i.startTime);
             let endTime = this.displayDate(i.endTime);
-            let imgLink = this.dateToClockUrl(i.endTime);
+            let imgLink = this.dateToClockUrl(i.endTime,'arriving');
 
             if (moment(i.endTime).tz(this.timezone).isBefore(rangeStart)) {
                 this.log.debug(`trip has endTime (${endTime}) < ` +

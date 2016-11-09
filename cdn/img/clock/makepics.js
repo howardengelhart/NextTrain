@@ -24,20 +24,23 @@ const IMAGES = {
     'wed.png' : { width : 54, height : 21 },
     'thu.png' : { width : 46, height : 22 },
     'fri.png' : { width : 34, height : 21 },
-    'sat.png' : { width : 45, height : 22 }
+    'sat.png' : { width : 45, height : 22 },
+    'departing.png' : { width : 193, height : 54 },
+    'arriving.png' : { width : 192, height : 54 }
 };
 
 const CLOCK_WIDTH = IMAGES['clockface.png'].width / 2;
 const MARGIN_DAY = { x : 20, y : IMAGES['clockface.png'].height - IMAGES['mon.png'].height - 20 };
 const MARGIN_MER = { x : IMAGES['clockface.png'].width - IMAGES['am.png'].width - 20, y : MARGIN_DAY.y};
-const MARGIN_DIG = { y : ((IMAGES['clockface.png'].height - IMAGES['9.png'].height) / 2) * .8 };
+const MARGIN_DIG = { y : ((IMAGES['clockface.png'].height - IMAGES['9.png'].height) / 2)  };
 
-function formatFilter(day,meridian,digit1,digit2,digit3,digit4) {
+function formatFilter(direction,day,meridian,digit1,digit2,digit3,digit4) {
     let result = { command : 'ffmpeg', args : [] };
-    let inputs = [ 'clockface.png', 'bar.png', day, meridian, digit1, digit2, digit3, digit4 ];
+    let inputs = [ 'clockface.png', 'bar.png', day, meridian, direction,
+        digit1, digit2, digit3, digit4 ];
     
-    if (inputs[4] === undefined) {
-        inputs.splice(4,1);
+    if (inputs[5] === undefined) {
+        inputs.splice(5,1);
     }
 
     let i = {
@@ -45,10 +48,11 @@ function formatFilter(day,meridian,digit1,digit2,digit3,digit4) {
         br : 1,
         dy : 2,
         mr : 3,
-        d1: 4,
-        d2: digit1 === undefined ? 4 : 5,
-        d3: digit1 === undefined ? 5 : 6,
-        d4: digit1 === undefined ? 6 : 7
+        dr : 4,
+        d1: 5,
+        d2: digit1 === undefined ? 5 : 6,
+        d3: digit1 === undefined ? 6 : 7,
+        d4: digit1 === undefined ? 7 : 8
     };
 
     for (let file of inputs) {
@@ -56,7 +60,7 @@ function formatFilter(day,meridian,digit1,digit2,digit3,digit4) {
         result.args.push(`${file}`);
     }
 
-    let d1X,d2X,d3X,d4X,dY,b1X,b2X,bY;
+    let d1X,d2X,d3X,d4X,dY,b1X,b2X,bY,drX,drY;
 
     let calcDW = (d1,d2) => ((CLOCK_WIDTH - (IMAGES[d1].width + IMAGES[d2].width + 40)) / 2);
      
@@ -77,6 +81,9 @@ function formatFilter(day,meridian,digit1,digit2,digit3,digit4) {
     bY = dY + (IMAGES[digit2].height / 2);
     b1X = 8;
     b2X = CLOCK_WIDTH + 4;
+
+    drY=0;
+    drX=Math.round(((CLOCK_WIDTH * 2) - (IMAGES[direction].width )) / 2);
     result.args.push('-filter_complex');
     let filter = `'[${i.cl}][${i.dy}]overlay=${MARGIN_DAY.x}:${MARGIN_DAY.y}[d];`;
     filter += `[d][${i.mr}]overlay=${MARGIN_MER.x}:${MARGIN_MER.y}[m];`;
@@ -87,7 +94,7 @@ function formatFilter(day,meridian,digit1,digit2,digit3,digit4) {
     }
     filter += `[hr][${i.br}]overlay=${b1X}:${bY}[b1];`;
     filter += `[b1][${i.d3}]overlay=${d3X}:${dY}[m1];[m1][${i.d4}]overlay=${d4X}:${dY}[mn];`;
-    filter += `[mn][${i.br}]overlay=${b2X}:${bY}'`;
+    filter += `[mn][${i.br}]overlay=${b2X}:${bY}[mo];[mo][${i.dr}]overlay=${drX}:${drY}'`;
     result.args.push(filter);
     result.args.push('-y');
 
@@ -108,7 +115,7 @@ function formatFilter(day,meridian,digit1,digit2,digit3,digit4) {
         return part;
     });
 
-    let outPut = `./out/${parts[0]}_${parts[1]}_${parts[2]}${parts[3]}_${parts[4]}${parts[5]}.png`;
+    let outPut = `./out/${direction.replace('.png','')}_${parts[0]}_${parts[1]}_${parts[2]}${parts[3]}_${parts[4]}${parts[5]}.png`;
     result.args.push(outPut);
     result.output = outPut;
     return result;
@@ -116,32 +123,33 @@ function formatFilter(day,meridian,digit1,digit2,digit3,digit4) {
 
 
 let cmds = [];
-for (let day of [ 'sun.png', 'mon.png', 'tue.png', 'wed.png', 'thu.png', 'fri.png', 'sat.png' ] ) {
-    for (let meridian of [ 'am.png', 'pm.png' ]) {
-        for (let hour =1; hour <= 12; hour++ ) {
-            for (let minute = 0; minute <= 59; minute++) {
-                let digit1, digit2, digit3, digit4;
-                if (hour > 9 ) {
-                    digit1 = '1.png';
-                    digit2 = `${hour % 10}.png`;
-                } else {
-                    digit2 = `${hour}.png`;
-                }
-
-                for (let tmin = 50; tmin >= 0; tmin -=10) {
-                    if (minute >= tmin) {
-                        digit3 = `${tmin / 10}.png`;
-                        if (tmin > 0) {
-                            digit4 = `${minute % tmin}.png`;
-                        } else {
-                            digit4 = `${minute}.png`;
-                        }
-                        break;
+for (let direction of [ 'arriving.png', 'departing.png']) { 
+    for (let day of [ 'sun.png', 'mon.png', 'tue.png', 'wed.png', 
+        'thu.png', 'fri.png', 'sat.png' ] ) {
+        for (let meridian of [ 'am.png', 'pm.png' ]) {
+            for (let hour =1; hour <= 12; hour++ ) {
+                for (let minute = 0; minute <= 59; minute++) {
+                    let digit1, digit2, digit3, digit4;
+                    if (hour > 9 ) {
+                        digit1 = '1.png';
+                        digit2 = `${hour % 10}.png`;
+                    } else {
+                        digit2 = `${hour}.png`;
                     }
+
+                    for (let tmin = 50; tmin >= 0; tmin -=10) {
+                        if (minute >= tmin) {
+                            digit3 = `${tmin / 10}.png`;
+                            if (tmin > 0) {
+                                digit4 = `${minute % tmin}.png`;
+                            } else {
+                                digit4 = `${minute}.png`;
+                            }
+                            break;
+                        }
+                    }
+                    cmds.push(formatFilter(direction,day,meridian,digit1,digit2,digit3,digit4));
                 }
-//                if (((hour === 1) || (hour === 12)) && ((minute === 0) || (minute === 48))) {
-                    cmds.push(formatFilter(day,meridian,digit1,digit2,digit3,digit4));
-//                }
             }
         }
     }
