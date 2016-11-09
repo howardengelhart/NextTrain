@@ -1,7 +1,7 @@
 'use strict';
 
 const moment = require('moment-timezone');
-const OTPlanner = require('./src/OTPlanner');
+const OTPlanner = require('../src/OTPlanner');
 const otp = new OTPlanner( {"hostname":"otp.mechinate.com:8080","routerId":"njt"} );
 const TODAY = timezone => moment().tz(timezone);
 
@@ -52,7 +52,7 @@ let params = {
     numItineraries : 3,
     showIntermediateStops: true,
 //    arriveBy : true,
-    ignoreRealtimeUpdates : true,
+//    ignoreRealtimeUpdates : true,
     date : range.format('MM-DD-YYYY'),
     time : range.format('HH:mm:00')
 };
