@@ -864,6 +864,7 @@ class TripRequestHandler extends RequestHandler {
         this.log.debug('exec onNew');
         let rqs = { type : this.type, state : 'NEW' };
         rqs.data = this.payload;
+        rqs.data.requestTimestamp = this.job.msg.timestamp;
         this.user.data.currentRequest = rqs;
         return this.quickMatchStops().then(() => this.evalState());
     }
@@ -1101,7 +1102,7 @@ class DepartingTripRequestHandler extends TripRequestHandler {
         }
         
         if (!rangeEnd) {
-            rangeEnd = rangeStart.add(2,'hours');
+            rangeEnd = moment(rangeStart).add(2,'hours');
         }
 
         plans = (plans || []).sort(planSort);
@@ -1280,6 +1281,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
         let rangeStart, rangeEnd;
         let planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime ? 1 : -1 );
 
+        this.log.debug({ dateTime : data.datetime},'EVAL DATETIME');
         if (data.datetime) {
             if (data.datetime.type === 'interval') {
                 if (data.datetime.to) {
@@ -1311,14 +1313,18 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
         }
 
         if (!rangeEnd) {
-            rangeEnd = moment().tz(this.timezone).add(1,'hours');
+            if (rangeStart) {
+                rangeEnd = moment(rangeStart).add(1,'hours');
+            } else {
+                rangeEnd = moment().tz(this.timezone).add(1,'hours');
+            }
 //            planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime ? 1 : -1 );
 //        } else {
 //            planSort = (a,b) => ( a.itinerary.endTime > b.itinerary.endTime  ? -1 : 1 );
         }
         
         if (!rangeStart) {
-            rangeStart = rangeEnd.subtract(1,'hours');
+            rangeStart = moment(rangeEnd).subtract(1,'hours');
         }
 
 
@@ -1332,6 +1338,12 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
             if (moment(i.endTime).tz(this.timezone).isBefore(rangeStart)) {
                 this.log.debug(`trip has endTime (${endTime}) < ` +
                     `${this.displayDate(rangeStart)}, skip`);
+                continue;
+            }
+
+            if (moment(i.endTime).tz(this.timezone).isAfter(rangeEnd)) {
+                this.log.debug(`trip has endTime (${endTime}) > ` +
+                    `${this.displayDate(rangeEnd)}, skip`);
                 continue;
             }
 
@@ -1376,10 +1388,13 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
     getTripParams() {
         let range = moment().tz(this.timezone).add(1,'hours');
         let data = this.request.data;
-        
+
         if (data.datetime) {
             this.log.debug({ dateTime : data.datetime}, 'REQUEST DATETIME CHECK');
             if (data.datetime.type === 'interval') {
+                if (data.datetime.from) {
+                    range = moment(data.datetime.from.value).tz(this.timezone).add(1, 'hours');
+                } else
                 if (data.datetime.to) {
                     if (data.datetime.to.grain === 'hour') {
                         range = moment(data.datetime.to.value).tz(this.timezone)
@@ -1391,7 +1406,7 @@ class ArrivingTripRequestHandler extends TripRequestHandler {
                     } else {
                         range = moment(data.datetime.to.value).tz(this.timezone);
                     }
-                }
+                } 
             }
             else 
             if (data.datetime.type === 'value') {

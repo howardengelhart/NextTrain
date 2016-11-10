@@ -1,8 +1,9 @@
 'use strict';
+/* eslint-disable no-console */
 
 const moment = require('moment-timezone');
 const OTPlanner = require('../src/OTPlanner');
-const otp = new OTPlanner( {"hostname":"otp.mechinate.com:8080","routerId":"njt"} );
+const otp = new OTPlanner( {'hostname':'otp.mechinate.com:8080','routerId':'njt'} );
 const TODAY = timezone => moment().tz(timezone);
 
 function fmtDate(dt) {

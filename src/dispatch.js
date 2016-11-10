@@ -26,6 +26,42 @@ function textPreprocessor(wit,msg,job) {
             }
         }
 
+        // Sometimes WIT interprets a time range (from/to) now when its not
+        // supposed to be... ie "by 9am tomorrow morning" is sent as a range
+        // where from is NOW and to is 9am tomorrow.  We'd rather treat the
+        // from as a null..
+        if ((payload.datetime) && (payload.datetime.type === 'interval')) {
+            let now = Date.now();
+            let fromVal = ld.get(payload,'datetime.from.value');
+            let fromGrain = ld.get(payload,'datetime.from.grain');
+            let toVal = ld.get(payload,'datetime.to.value');
+            let toGrain = ld.get(payload,'datetime.to.grain');
+            
+            let fromNow = (fromGrain === 'second' && fromVal && 
+                (Math.abs((new Date(fromVal)).valueOf() - now) < 30000));
+            let toNow = (toGrain === 'second' && toVal && 
+                (Math.abs((new Date(toVal)).valueOf() - now) < 30000));
+       
+            log.debug({
+                fromVal : fromVal,
+                fromGrain : fromGrain,
+                toVal : toVal,
+                toGrain : toGrain,
+                fromNow : fromNow,
+                toNow : toNow
+            },'DATETIME BOGUS RANGE CHECK');
+
+            if (fromNow) {
+                payload.datetime.originalFrom = payload.datetime.from;
+                delete payload.datetime.from;
+            }
+
+            if (toNow) {
+                payload.datetime.originalTo = payload.datetime.to;
+                delete payload.datetime.to;
+            }
+        }
+
         ld.assign(job, { payloadType : 'text', msg : msg, 
             payload : payload, witResponse : res });
         return job;
