@@ -1,4 +1,4 @@
-# marco
+# NextTrain
 An experiment / learning project aiming to create a Facebook Messenger chat-bot leveraging AWS' serverless infrastructure.  This repo is currently used to implement the [NextTrain NJ](https://m.me/554561298060861) and [NextTrain BART](https://m.me/205643263198402) chat-bots, but can be expanded / adapted to create additional applications, and with a bit of restructuring, additional messaging platforms.
 
 ![System Overview](/doc/NextTrainNJ_diagram.png?raw=true "NextTrain.. System Overview")
